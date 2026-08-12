@@ -90,12 +90,26 @@ type Props = {
   atleta: Atleta;
   atletas: Atleta[];
   clubes: Record<string, Clube>;
+  onOpenPlayer?: ((a: Atleta) => void) | undefined;
+  onSell?: (() => void) | undefined;
   onClose: () => void;
 };
 
-export function PlayerModal({ atleta, atletas, clubes, onClose }: Props) {
+function Foto({ a, size = "h-14 w-14" }: { a: Atleta; size?: string }) {
+  const src = playerPhoto(a);
+  return src ? (
+    <img src={src} alt={a.apelido} className={`${size} rounded-full border-2 object-cover ${statusBorderClass(a.status_id)}`} />
+  ) : (
+    <span className={`${size} flex items-center justify-center rounded-full bg-secondary font-display`}>
+      {a.apelido.slice(0, 2).toUpperCase()}
+    </span>
+  );
+}
+
+export function PlayerModal({ atleta, atletas, clubes, onOpenPlayer, onSell, onClose }: Props) {
   const [tab, setTab] = useState<"geral" | "cedimentos">("geral");
   const [showAll, setShowAll] = useState(false);
+  const [busca, setBusca] = useState("");
   const [compareId, setCompareId] = useState<number | null>(null);
   const [comparing, setComparing] = useState(false);
   const { data: analysis, isLoading } = useAnalysis(atleta);
@@ -155,9 +169,19 @@ export function PlayerModal({ atleta, atletas, clubes, onClose }: Props) {
               <ScoutLine scout={atleta.scout} />
             </div>
           </div>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
-            ✕
-          </button>
+          <div className="flex flex-col items-end gap-2">
+            <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+              ✕
+            </button>
+            {onSell && (
+              <button
+                onClick={onSell}
+                className="rounded-lg border border-destructive px-2 py-1 text-xs font-semibold text-destructive"
+              >
+                Vender
+              </button>
+            )}
+          </div>
         </header>
 
         <nav className="flex border-b border-border">
@@ -219,6 +243,26 @@ export function PlayerModal({ atleta, atletas, clubes, onClose }: Props) {
                   </div>
                 </dl>
               )}
+              {showAll && ok && (
+                <section>
+                  <h4 className="mb-2 text-center font-display tracking-wide">
+                    Últimas 5 pontuações {ok.mandoContrario === "casa" ? "em casa" : "fora"} (mando contrário)
+                  </h4>
+                  <div className="space-y-2">
+                    {ok.historicoContrario.map((g) => (
+                      <div key={g.rodada} className="rounded-lg border border-border bg-panel-2 px-3 py-2">
+                        <p className="mb-1 text-center text-xs text-muted-foreground">
+                          Rodada {g.rodada} · {fmt(g.pontuacao, 2)} pts
+                        </p>
+                        <ScoutLine scout={g.scout} />
+                      </div>
+                    ))}
+                    {!ok.historicoContrario.length && (
+                      <p className="text-center text-xs text-muted-foreground">Sem jogos nesse mando.</p>
+                    )}
+                  </div>
+                </section>
+              )}
 
               {ok && (
                 <section>
@@ -246,10 +290,27 @@ export function PlayerModal({ atleta, atletas, clubes, onClose }: Props) {
               {ok && (
                 <section>
                   <h4 className="mb-1 font-display tracking-wide">Enfrenta</h4>
-                  <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <img src={escudo(adversario, "30x30")} alt="" className="h-4 w-4 object-contain" />
-                    {enfrenta.map((e) => e.apelido).join(", ") || "escalação provável indisponível"}
-                  </p>
+                    {enfrenta.length ? (
+                      enfrenta.map((e) => (
+                        <button
+                          key={e.atleta_id}
+                          onClick={() => onOpenPlayer?.(e)}
+                          className="flex items-center gap-1 rounded-lg border border-border bg-panel-2 px-2 py-1 hover:border-accent"
+                        >
+                          {playerPhoto(e) ? (
+                            <img src={playerPhoto(e)!} alt="" className="h-5 w-5 rounded-full object-cover" />
+                          ) : (
+                            <span className="h-5 w-5 rounded-full bg-secondary" />
+                          )}
+                          <span className="text-foreground">{e.apelido}</span>
+                        </button>
+                      ))
+                    ) : (
+                      <span>escalação provável indisponível</span>
+                    )}
+                  </div>
                 </section>
               )}
             </div>
@@ -337,31 +398,62 @@ export function PlayerModal({ atleta, atletas, clubes, onClose }: Props) {
               </button>
             </header>
             <div className="overflow-y-auto p-4">
-              <select
-                value={compareId ?? ""}
-                onChange={(e) => setCompareId(Number(e.target.value) || null)}
-                className="mb-4 w-full rounded-lg border border-border bg-panel-2 px-3 py-2 text-sm"
-              >
-                <option value="">Escolher {POS_NOME[atleta.posicao_id]}…</option>
-                {atletas
-                  .filter((a) => a.posicao_id === atleta.posicao_id && a.atleta_id !== atleta.atleta_id)
-                  .sort((a, b) => b.media_num - a.media_num)
-                  .slice(0, 120)
-                  .map((a) => (
-                    <option key={a.atleta_id} value={a.atleta_id}>
-                      {a.apelido} — {clubes[String(a.clube_id)]?.abreviacao}
-                    </option>
-                  ))}
-              </select>
+              <div className="mb-4">
+                <input
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  placeholder="Digite 3 letras do nome do jogador…"
+                  className="w-full rounded-lg border border-border bg-panel-2 px-3 py-2 text-sm outline-none focus:border-accent"
+                />
+                {busca.trim().length >= 3 && (
+                  <div className="mt-2 max-h-48 space-y-1 overflow-y-auto">
+                    {atletas
+                      .filter(
+                        (a) =>
+                          a.atleta_id !== atleta.atleta_id &&
+                          a.apelido.toLowerCase().includes(busca.trim().toLowerCase()),
+                      )
+                      .sort((a, b) => b.media_num - a.media_num)
+                      .slice(0, 20)
+                      .map((a) => (
+                        <button
+                          key={a.atleta_id}
+                          onClick={() => {
+                            setCompareId(a.atleta_id);
+                            setBusca("");
+                          }}
+                          className="flex w-full items-center gap-2 rounded-lg border border-border bg-panel-2 px-2 py-1.5 text-left hover:border-accent"
+                        >
+                          {playerPhoto(a) ? (
+                            <img src={playerPhoto(a)!} alt="" className="h-7 w-7 rounded-full object-cover" />
+                          ) : (
+                            <span className="h-7 w-7 rounded-full bg-secondary" />
+                          )}
+                          <img src={escudo(clubes[String(a.clube_id)], "30x30")} alt="" className="h-4 w-4 object-contain" />
+                          <span className="flex-1 truncate text-sm">{a.apelido}</span>
+                          <span className="text-[11px] text-muted-foreground">
+                            {clubes[String(a.clube_id)]?.abreviacao} · {POS_NOME[a.posicao_id]}
+                          </span>
+                        </button>
+                      ))}
+                  </div>
+                )}
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <p className="mb-2 text-center font-display text-lg">{atleta.apelido}</p>
+                  <div className="mb-2 flex flex-col items-center gap-1">
+                    <Foto a={atleta} size="h-16 w-16" />
+                    <p className="text-center font-display text-lg">{atleta.apelido}</p>
+                  </div>
                   <Metrics atleta={atleta} analysis={analysis} clubes={clubes} />
                 </div>
                 <div>
                   {outro ? (
                     <>
-                      <p className="mb-2 text-center font-display text-lg">{outro.apelido}</p>
+                      <div className="mb-2 flex flex-col items-center gap-1">
+                        <Foto a={outro} size="h-16 w-16" />
+                        <p className="text-center font-display text-lg">{outro.apelido}</p>
+                      </div>
                       <Metrics atleta={outro} analysis={analysisB} clubes={clubes} />
                     </>
                   ) : (

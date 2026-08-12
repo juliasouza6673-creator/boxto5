@@ -69,6 +69,7 @@ export function MatchTicker({ partidas, clubes, atletas, onSelectMatch }: Props)
           {items.map((p, i) => {
             const casa = clubes[String(p.clube_casa_id)];
             const fora = clubes[String(p.clube_visitante_id)];
+            const dt = p.partida_data ? new Date(p.partida_data.replace(" ", "T")) : null;
             return (
               <button
                 key={`${p.clube_casa_id}-${i}`}
@@ -78,9 +79,18 @@ export function MatchTicker({ partidas, clubes, atletas, onSelectMatch }: Props)
                 <img src={escudo(casa, "30x30")} alt={casa?.nome ?? ""} className="h-6 w-6 object-contain" />
                 <span className="font-display text-xs tracking-wide text-muted-foreground">x</span>
                 <img src={escudo(fora, "30x30")} alt={fora?.nome ?? ""} className="h-6 w-6 object-contain" />
+                <span className="flex flex-col items-start leading-tight">
+                  <span className="text-[10px] text-accent">
+                    {dt
+                      ? dt.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
+                      : "a definir"}
+                  </span>
+                  <span className="max-w-28 truncate text-[10px] text-muted-foreground">{p.local ?? ""}</span>
+                </span>
               </button>
             );
           })}
+
         </div>
       </div>
       {dicas.length > 0 && (
