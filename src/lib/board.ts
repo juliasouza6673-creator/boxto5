@@ -92,6 +92,12 @@ export function newBoard(nome = "Campinho 1", formacao = "4-3-3"): Board {
 
 const LS_KEY = "taticspro.boards.v1";
 
+/** Ensure boards saved before the bench existed keep working. */
+function migrate(list: Board[]): Board[] {
+  return list.map((b) => ({ ...b, bench: b.bench?.length ? b.bench : buildBench() }));
+}
+
+
 export function useBoards() {
   const [boards, setBoards] = useState<Board[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
