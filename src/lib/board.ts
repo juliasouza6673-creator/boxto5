@@ -114,7 +114,7 @@ export function useBoards() {
       /* ignore */
     }
     if (!initial.length) initial = [newBoard()];
-    setBoards(initial);
+    setBoards(migrate(initial));
     setActiveId(initial[0]!.id);
     setHydrated(true);
   }, []);
@@ -136,7 +136,7 @@ export function useBoards() {
       const { data } = await supabase.from("boards").select("data").eq("user_id", userId).maybeSingle();
       const remote = (data?.data ?? []) as unknown as Board[];
       if (Array.isArray(remote) && remote.length) {
-        setBoards(remote);
+        setBoards(migrate(remote));
         setActiveId(remote[0]!.id);
       }
     })();
