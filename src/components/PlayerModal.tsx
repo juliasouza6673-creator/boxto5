@@ -90,8 +90,8 @@ type Props = {
   atleta: Atleta;
   atletas: Atleta[];
   clubes: Record<string, Clube>;
-  onOpenPlayer?: (a: Atleta) => void;
-  onSell?: () => void;
+  onOpenPlayer?: ((a: Atleta) => void) | undefined;
+  onSell?: (() => void) | undefined;
   onClose: () => void;
 };
 
