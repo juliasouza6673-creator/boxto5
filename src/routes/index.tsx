@@ -3,9 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { getBootstrap, getMarketStatus } from "@/lib/cartola.functions";
+import { getBootstrap, getExpectedPoints, getMarketStatus } from "@/lib/cartola.functions";
 import type { Atleta, Clube, Partida } from "@/lib/cartola-types";
-import { POS_NOME } from "@/lib/cartola-types";
+import { POS_ABREV, POS_NOME } from "@/lib/cartola-types";
 import { escudo, fmt, isEscalavel, playerPhoto } from "@/lib/cartola-ui";
 import { useBoards, type SlotState } from "@/lib/board";
 import { MatchTicker } from "@/components/MatchTicker";
@@ -37,6 +37,8 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
+const HINT_KEY = "taticspro.hint.playerclick";
+
 function Countdown({ timestamp }: { timestamp: number }) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -49,7 +51,7 @@ function Countdown({ timestamp }: { timestamp: number }) {
   const m = Math.floor((diff % 3600000) / 60000);
   const s = Math.floor((diff % 60000) / 1000);
   return (
-    <span className="font-display tracking-wide text-accent">
+    <span className="font-display tracking-wide text-success">
       {d} dias, {h} horas, {m} minutos e {s} segundos
     </span>
   );
@@ -58,6 +60,7 @@ function Countdown({ timestamp }: { timestamp: number }) {
 function Index() {
   const bootstrapFn = useServerFn(getBootstrap);
   const statusFn = useServerFn(getMarketStatus);
+  const expectedFn = useServerFn(getExpectedPoints);
   const { data, isLoading } = useQuery({
     queryKey: ["bootstrap"],
     queryFn: () => bootstrapFn(),
@@ -71,13 +74,14 @@ function Index() {
   });
 
   const { boards, activeId, setActiveId, update, add, remove, move, userId } = useBoards();
-  const [picker, setPicker] = useState<SlotState | null>(null);
+  const [picker, setPicker] = useState<{ slot: SlotState; bench: boolean } | null>(null);
   const [aberto, setAberto] = useState<Atleta | null>(null);
   const [best, setBest] = useState(false);
   const [auth, setAuth] = useState(false);
   const [advanced, setAdvanced] = useState(false);
   const [match, setMatch] = useState<Partida | null>(null);
   const [avisoFechado, setAvisoFechado] = useState(false);
+  const [hint, setHint] = useState(false);
 
   useEffect(() => {
     if (!userId) {
@@ -93,6 +97,38 @@ function Index() {
   const esquemas = data?.ok ? data.esquemas : [];
   const atletasById = useMemo(() => new Map(atletas.map((a) => [a.atleta_id, a])), [atletas]);
   const board = boards.find((b) => b.id === activeId) ?? boards[0];
+
+  const showHintOnce = () => {
+    try {
+      if (localStorage.getItem(HINT_KEY)) return;
+      localStorage.setItem(HINT_KEY, "1");
+    } catch {
+      /* ignore */
+    }
+    setHint(true);
+  };
+
+  const titulares = useMemo(
+    () =>
+      (board?.slots ?? [])
+        .map((s) => (s.atletaId ? atletasById.get(s.atletaId) : null))
+        .filter((a): a is Atleta => !!a)
+        .map((a) => ({ atletaId: a.atleta_id, clubeId: a.clube_id, posicaoId: a.posicao_id })),
+    [board?.slots, atletasById],
+  );
+
+  const { data: esperado } = useQuery({
+    queryKey: ["expected", titulares.map((t) => t.atletaId).sort().join(",")],
+    enabled: titulares.length > 0,
+    staleTime: 10 * 60_000,
+    queryFn: () => expectedFn({ data: { jogadores: titulares } }),
+  });
+
+  const esperadoTotal = !titulares.length
+    ? 0
+    : esperado?.ok
+      ? Object.values(esperado.esperado).reduce((s, v) => s + v, 0)
+      : null;
 
   const recomendados = useMemo(() => {
     const casaOuFora = new Map<number, "casa" | "fora">();
@@ -127,8 +163,38 @@ function Index() {
     });
   };
 
+  const venderAtleta = (atletaId: number) => {
+    if (!board) return;
+    update(board.id, (b) => ({
+      ...b,
+      slots: b.slots
+        .filter((s) => !(s.extra && s.atletaId === atletaId))
+        .map((s) => (s.atletaId === atletaId ? { ...s, atletaId: null } : s)),
+      bench: b.bench.map((s) => (s.atletaId === atletaId ? { ...s, atletaId: null } : s)),
+    }));
+  };
+
+  const noCampinho = (id: number) =>
+    !!board && [...board.slots, ...board.bench].some((s) => s.atletaId === id);
+
   const fechamento = live?.ok ? live.status.fechamento?.timestamp : data?.ok ? data.status.fechamento?.timestamp : 0;
+  const statusMercado = live?.ok ? live.status.status_mercado : data?.ok ? data.status.status_mercado : undefined;
+  const mercadoAberto = statusMercado === 1;
   const atualizado = new Date(live?.ok ? live.atualizadoEm : (data?.ok ? data.atualizadoEm : Date.now()));
+
+  const matchData = match?.partida_data ? new Date(match.partida_data.replace(" ", "T")) : null;
+  const linhas = useMemo(() => {
+    if (!match) return [] as Array<{ pos: number; casa: Atleta[]; fora: Atleta[] }>;
+    const sel = (clubeId: number, pos: number) =>
+      atletas
+        .filter((a) => a.clube_id === clubeId && a.posicao_id === pos && (a.status_id === 7 || a.status_id === 2))
+        .sort((x, y) => y.media_num - x.media_num);
+    return [1, 2, 3, 4, 5, 6].map((pos) => ({
+      pos,
+      casa: sel(match.clube_casa_id, pos),
+      fora: sel(match.clube_visitante_id, pos),
+    }));
+  }, [match, atletas]);
 
   return (
     <main className="mx-auto max-w-4xl px-3 pb-16 pt-3 sm:px-6">
@@ -160,12 +226,21 @@ function Index() {
         )}
       </header>
 
-      {!!fechamento && (
-        <div className="mb-3 rounded-xl border border-border bg-panel px-3 py-2 text-xs text-muted-foreground">
-          Mercado fecha em <Countdown timestamp={fechamento} /> ·{" "}
-          <span>Atualizado às {atualizado.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
-        </div>
-      )}
+      <div className="mb-3 rounded-xl border border-border bg-panel px-3 py-2 text-xs text-muted-foreground">
+        {statusMercado !== undefined && (
+          <span
+            className={`mr-2 rounded-md border px-2 py-0.5 font-display tracking-wide ${mercadoAberto ? "border-success text-success" : "border-destructive text-destructive"}`}
+          >
+            Mercado {mercadoAberto ? "Aberto" : "Fechado"}
+          </span>
+        )}
+        {!!fechamento && (
+          <>
+            Fecha em <Countdown timestamp={fechamento} /> ·{" "}
+          </>
+        )}
+        <span>Atualizado às {atualizado.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
+      </div>
 
       {!userId && !avisoFechado && (
         <div className="mb-3 flex items-center gap-2 rounded-xl border border-warning/50 bg-panel px-3 py-2 text-xs">
@@ -174,6 +249,15 @@ function Index() {
             Entrar
           </button>
           <button onClick={() => setAvisoFechado(true)} className="text-muted-foreground">
+            ✕
+          </button>
+        </div>
+      )}
+
+      {hint && (
+        <div className="mb-3 flex items-center gap-2 rounded-xl border border-accent/50 bg-panel px-3 py-2 text-xs">
+          <span className="flex-1">Para ver detalhes do jogador clique nele.</span>
+          <button onClick={() => setHint(false)} className="text-muted-foreground">
             ✕
           </button>
         </div>
@@ -219,8 +303,10 @@ function Index() {
               atletasById={atletasById}
               clubes={clubes}
               recomendados={recomendados}
+              esperadoTotal={esperadoTotal}
               onChange={(patch) => update(board.id, patch)}
-              onSlotClick={setPicker}
+              onSlotClick={(slot) => setPicker({ slot, bench: false })}
+              onBenchClick={(slot) => setPicker({ slot, bench: true })}
               onPlayerClick={setAberto}
               onOpenAdvanced={() => setAdvanced(true)}
               onRename={(nome) => update(board.id, (b) => ({ ...b, nome }))}
@@ -241,17 +327,24 @@ function Index() {
 
       {picker && board && (
         <PlayerPicker
-          posicaoId={picker.pos}
+          posicaoId={picker.slot.pos}
           atletas={atletas}
           clubes={clubes}
-          usados={board.slots.map((s) => s.atletaId).filter(Boolean) as number[]}
+          usados={[...board.slots, ...board.bench].map((s) => s.atletaId).filter(Boolean) as number[]}
           recomendados={recomendados}
           onPick={(a) => {
+            const isBench = picker.bench;
             update(board.id, (b) => ({
               ...b,
-              slots: b.slots.map((s) => (s.id === picker.id ? { ...s, atletaId: a.atleta_id } : s)),
+              slots: isBench
+                ? b.slots
+                : b.slots.map((s) => (s.id === picker.slot.id ? { ...s, atletaId: a.atleta_id } : s)),
+              bench: isBench
+                ? b.bench.map((s) => (s.id === picker.slot.id ? { ...s, atletaId: a.atleta_id } : s))
+                : b.bench,
             }));
             setPicker(null);
+            showHintOnce();
           }}
           onClose={() => setPicker(null)}
         />
@@ -262,7 +355,21 @@ function Index() {
       )}
 
       {aberto && (
-        <PlayerModal atleta={aberto} atletas={atletas} clubes={clubes} onClose={() => setAberto(null)} />
+        <PlayerModal
+          atleta={aberto}
+          atletas={atletas}
+          clubes={clubes}
+          onOpenPlayer={setAberto}
+          onSell={
+            noCampinho(aberto.atleta_id)
+              ? () => {
+                  venderAtleta(aberto.atleta_id);
+                  setAberto(null);
+                }
+              : undefined
+          }
+          onClose={() => setAberto(null)}
+        />
       )}
 
       {best && <BestRoundModal clubes={clubes} onClose={() => setBest(false)} />}
@@ -274,46 +381,88 @@ function Index() {
           onClick={() => setMatch(null)}
         >
           <div
-            className="flex max-h-[80vh] w-full max-w-lg flex-col rounded-t-2xl border border-border bg-panel sm:rounded-2xl"
+            className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-t-2xl border border-border bg-panel sm:rounded-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <header className="flex items-center justify-center gap-3 border-b border-border p-4">
-              <img src={escudo(clubes[String(match.clube_casa_id)], "45x45")} alt="" className="h-8 w-8" />
-              <span className="font-display">x</span>
-              <img src={escudo(clubes[String(match.clube_visitante_id)], "45x45")} alt="" className="h-8 w-8" />
-              <button onClick={() => setMatch(null)} className="ml-auto text-muted-foreground">
+            <header className="relative border-b border-border p-4 text-center">
+              <button onClick={() => setMatch(null)} className="absolute right-4 top-4 text-muted-foreground">
                 ✕
               </button>
+              <div className="flex items-center justify-center gap-4">
+                <div className="flex flex-col items-center gap-1">
+                  <img src={escudo(clubes[String(match.clube_casa_id)], "60x60")} alt="" className="h-12 w-12 object-contain" />
+                  <span className="text-[11px] text-muted-foreground">
+                    {clubes[String(match.clube_casa_id)]?.abreviacao}
+                  </span>
+                </div>
+                <span className="font-display text-lg">x</span>
+                <div className="flex flex-col items-center gap-1">
+                  <img
+                    src={escudo(clubes[String(match.clube_visitante_id)], "60x60")}
+                    alt=""
+                    className="h-12 w-12 object-contain"
+                  />
+                  <span className="text-[11px] text-muted-foreground">
+                    {clubes[String(match.clube_visitante_id)]?.abreviacao}
+                  </span>
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-accent">
+                {matchData
+                  ? matchData.toLocaleString("pt-BR", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
+                  : "Data a definir"}
+              </p>
+              <p className="text-xs text-muted-foreground">{match.local ?? ""}</p>
             </header>
-            <div className="space-y-1.5 overflow-y-auto p-3">
-              {atletas
-                .filter(
-                  (a) =>
-                    (a.clube_id === match.clube_casa_id || a.clube_id === match.clube_visitante_id) &&
-                    (a.status_id === 7 || a.status_id === 2),
-                )
-                .sort((a, b) => b.media_num - a.media_num)
-                .map((a) => (
-                  <button
-                    key={a.atleta_id}
-                    onClick={() => {
-                      setAberto(a);
-                      setMatch(null);
-                    }}
-                    className="flex w-full items-center gap-2 rounded-lg border border-border bg-panel-2 px-3 py-2 text-left"
-                  >
-                    {playerPhoto(a) ? (
-                      <img src={playerPhoto(a)!} alt="" className="h-8 w-8 rounded-full object-cover" />
-                    ) : (
-                      <span className="h-8 w-8 rounded-full bg-secondary" />
-                    )}
-                    <img src={escudo(clubes[String(a.clube_id)], "30x30")} alt="" className="h-4 w-4" />
-                    <span className="min-w-0 flex-1 truncate text-sm">{a.apelido}</span>
-                    <span className="text-[11px] text-muted-foreground">
-                      {POS_NOME[a.posicao_id]} · média {fmt(a.media_num, 1)}
-                    </span>
-                  </button>
-                ))}
+            <div className="space-y-3 overflow-y-auto p-3">
+              {linhas.map((linha) => {
+                const max = Math.max(linha.casa.length, linha.fora.length);
+                if (!max) return null;
+                return (
+                  <section key={linha.pos}>
+                    <p className="mb-1 text-center font-display text-[11px] tracking-wide text-muted-foreground">
+                      {POS_NOME[linha.pos]}
+                    </p>
+                    <div className="space-y-1.5">
+                      {Array.from({ length: max }).map((_, i) => (
+                        <div key={i} className="grid grid-cols-2 gap-2">
+                          {[linha.casa[i], linha.fora[i]].map((a, side) =>
+                            a ? (
+                              <button
+                                key={side}
+                                onClick={() => {
+                                  setAberto(a);
+                                  setMatch(null);
+                                }}
+                                className="flex items-center gap-2 rounded-lg border border-border bg-panel-2 px-2 py-2 text-left"
+                              >
+                                {playerPhoto(a) ? (
+                                  <img src={playerPhoto(a)!} alt="" className="h-8 w-8 rounded-full object-cover" />
+                                ) : (
+                                  <span className="h-8 w-8 rounded-full bg-secondary" />
+                                )}
+                                <span className="min-w-0 flex-1">
+                                  <span className="block truncate text-xs">{a.apelido}</span>
+                                  <span className="block text-[10px] text-muted-foreground">
+                                    {POS_ABREV[a.posicao_id]} · méd {fmt(a.media_num, 1)}
+                                  </span>
+                                </span>
+                              </button>
+                            ) : (
+                              <span key={side} />
+                            ),
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                );
+              })}
             </div>
           </div>
         </div>
