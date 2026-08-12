@@ -18,10 +18,12 @@ export type Board = {
   nome: string;
   formacao: string;
   slots: SlotState[];
+  bench: SlotState[];
   strokes: Stroke[];
   bubbles: TextBubble[];
   locked: boolean;
 };
+
 
 const ROW_X: Record<number, number[]> = {
   1: [50],
