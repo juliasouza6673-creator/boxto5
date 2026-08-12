@@ -69,18 +69,29 @@ export const getPlayerAnalysis = createServerFn({ method: "POST" })
       const om = await m.opponentMap(rodada);
       const info = om[data.clubeId];
       if (!info) return { ok: true as const, semJogo: true, rodada };
-      const [hist, ced] = await Promise.all([
+      const contrario = info.mando === "casa" ? ("fora" as const) : ("casa" as const);
+      const [histRaw, histContrario, ced] = await Promise.all([
         m.playerMandoHistory(data.atletaId, info.mando, rodada, 5),
+        m.playerMandoHistory(data.atletaId, contrario, rodada, 5),
         m.cedimentos(info.adversario, data.posicaoId, info.mando, rodada, 5),
       ]);
+      // Sem jogos no mando previsto: usa as últimas 5 em casa como referência
+      const fallbackCasa =
+        !histRaw.length && info.mando !== "casa"
+          ? await m.playerMandoHistory(data.atletaId, "casa", rodada, 5)
+          : [];
+      const hist = histRaw.length ? histRaw : fallbackCasa;
       const mediaMando = hist.length ? hist.reduce((s, g) => s + g.pontuacao, 0) / 5 : 0;
       return {
         ok: true as const,
         semJogo: false,
         rodada,
         mando: info.mando,
+        mandoContrario: contrario,
         adversario: info.adversario,
         historico: hist,
+        historicoContrario: histContrario,
+        usouFallbackCasa: !histRaw.length && fallbackCasa.length > 0,
         mediaMando,
         cedimentos: ced,
         pontuacaoEsperada: mediaMando + ced.mediaCedida,
@@ -91,6 +102,37 @@ export const getPlayerAnalysis = createServerFn({ method: "POST" })
       return { ok: false as const, error: (err as Error).message };
     }
   });
+
+export const getExpectedPoints = createServerFn({ method: "POST" })
+  .inputValidator((d: { jogadores: Array<{ atletaId: number; clubeId: number; posicaoId: number }> }) => d)
+  .handler(async ({ data }) => {
+    const m = await import("./cartola-analysis.server");
+    try {
+      const status = await m.getStatus();
+      const rodada = status.rodada_atual ?? 1;
+      const om = await m.opponentMap(rodada);
+      const cedCache = new Map<string, Awaited<ReturnType<typeof m.cedimentos>>>();
+      const out: Record<string, number> = {};
+      for (const j of data.jogadores.slice(0, 20)) {
+        const info = om[j.clubeId];
+        if (!info) continue;
+        let hist = await m.playerMandoHistory(j.atletaId, info.mando, rodada, 5);
+        if (!hist.length && info.mando !== "casa") hist = await m.playerMandoHistory(j.atletaId, "casa", rodada, 5);
+        const key = `${info.adversario}-${j.posicaoId}-${info.mando}`;
+        let ced = cedCache.get(key);
+        if (!ced) {
+          ced = await m.cedimentos(info.adversario, j.posicaoId, info.mando, rodada, 5);
+          cedCache.set(key, ced);
+        }
+        const mediaMando = hist.length ? hist.reduce((s, g) => s + g.pontuacao, 0) / 5 : 0;
+        out[String(j.atletaId)] = mediaMando + ced.mediaCedida;
+      }
+      return { ok: true as const, esperado: out };
+    } catch (err) {
+      return { ok: false as const, error: (err as Error).message };
+    }
+  });
+
 
 export const getBestOfRound = createServerFn({ method: "GET" }).handler(async () => {
   const m = await import("./cartola-analysis.server");
