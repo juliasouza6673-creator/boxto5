@@ -14,8 +14,10 @@ type Props = {
   atletas: Atleta[];
   clubes: Record<string, Clube>;
   recomendados: number[];
+  esperadoTotal: number | null;
   onChange: (patch: (b: Board) => Board) => void;
   onSlotClick: (slot: SlotState) => void;
+  onBenchClick: (slot: SlotState) => void;
   onPlayerClick: (a: Atleta) => void;
   onOpenAdvanced: () => void;
   onRename: (nome: string) => void;
@@ -28,8 +30,10 @@ export function Pitch({
   atletasById,
   clubes,
   recomendados,
+  esperadoTotal,
   onChange,
   onSlotClick,
+  onBenchClick,
   onPlayerClick,
   onOpenAdvanced,
   onRename,
@@ -39,10 +43,11 @@ export function Pitch({
   const [tool, setTool] = useState<Tool>("none");
   const [color, setColor] = useState("#ff7a18");
   const [width, setWidth] = useState(3);
+  const [redoStack, setRedoStack] = useState<Stroke[]>([]);
   const drawing = useRef<string | null>(null);
   const dragId = useRef<string | null>(null);
 
-  const valorTotal = board.slots.reduce(
+  const valorTotal = [...board.slots, ...board.bench].reduce(
     (s, sl) => s + (sl.atletaId ? (atletasById.get(sl.atletaId)?.preco_num ?? 0) : 0),
     0,
   );
@@ -60,6 +65,7 @@ export function Pitch({
       const { x, y } = rel(e);
       const id = crypto.randomUUID();
       drawing.current = id;
+      setRedoStack([]);
       onChange((b) => ({ ...b, strokes: [...b.strokes, { id, d: `M ${x} ${y}`, color, width }] }));
     } else if (tool === "text") {
       const { x, y } = rel(e);
@@ -96,6 +102,20 @@ export function Pitch({
     onChange((b) => ({ ...b, strokes: b.strokes.filter((x) => x.id !== s.id) }));
   };
 
+  const undo = () => {
+    const last = board.strokes[board.strokes.length - 1];
+    if (!last) return;
+    setRedoStack((r) => [...r, last]);
+    onChange((b) => ({ ...b, strokes: b.strokes.slice(0, -1) }));
+  };
+
+  const redo = () => {
+    const last = redoStack[redoStack.length - 1];
+    if (!last) return;
+    setRedoStack((r) => r.slice(0, -1));
+    onChange((b) => ({ ...b, strokes: [...b.strokes, last] }));
+  };
+
   const tools: Array<[Tool | "clear", string, string]> = [
     ["pen", "✏️", "Caneta"],
     ["text", "T", "Texto"],
@@ -130,10 +150,16 @@ export function Pitch({
           Resetar posições
         </button>
         <button
-          onClick={() => onChange((b) => ({ ...b, slots: b.slots.map((s) => ({ ...s, atletaId: null })) }))}
+          onClick={() =>
+            onChange((b) => ({
+              ...b,
+              slots: b.slots.map((s) => ({ ...s, atletaId: null })),
+              bench: b.bench.map((s) => ({ ...s, atletaId: null })),
+            }))
+          }
           className="rounded-lg border border-border px-2 py-1 text-xs text-muted-foreground"
         >
-          Limpar escalação
+          Vender time
         </button>
         <button onClick={onDelete} className="rounded-lg border border-border px-2 py-1 text-xs text-destructive">
           Excluir
@@ -141,7 +167,7 @@ export function Pitch({
       </div>
 
       <div className="flex gap-2">
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col items-center gap-1.5">
           {tools.map(([t, icon, label]) => (
             <button
               key={t}
@@ -154,20 +180,37 @@ export function Pitch({
               {icon}
             </button>
           ))}
+          <button
+            title="Desfazer"
+            onClick={undo}
+            className="h-8 w-8 rounded-lg border border-border text-xs text-muted-foreground"
+          >
+            ↶
+          </button>
+          <button
+            title="Refazer"
+            onClick={redo}
+            className="h-8 w-8 rounded-lg border border-border text-xs text-muted-foreground"
+          >
+            ↷
+          </button>
           <input
             type="color"
             value={color}
             onChange={(e) => setColor(e.target.value)}
             className="h-8 w-8 rounded-lg border border-border bg-transparent"
           />
-          <input
-            type="range"
-            min={1}
-            max={10}
-            value={width}
-            onChange={(e) => setWidth(Number(e.target.value))}
-            className="h-8 w-8 -rotate-90"
-          />
+          <div className="flex h-28 w-8 items-center justify-center">
+            <input
+              type="range"
+              min={1}
+              max={16}
+              value={width}
+              onChange={(e) => setWidth(Number(e.target.value))}
+              className="w-24 -rotate-90 accent-accent"
+            />
+          </div>
+          <span className="text-[10px] text-muted-foreground">{width}px</span>
         </div>
 
         <div
@@ -189,19 +232,42 @@ export function Pitch({
           <div className="pointer-events-none absolute bottom-2 left-1/2 h-[16%] w-[55%] -translate-x-1/2 border border-b-0 border-primary/25" />
           <div className="pointer-events-none absolute top-2 left-1/2 h-[16%] w-[55%] -translate-x-1/2 border border-t-0 border-primary/25" />
 
-          <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full">
+          <svg
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+            className="absolute inset-0 h-full w-full"
+            style={{ pointerEvents: tool === "eraser" ? "auto" : "none" }}
+          >
             {board.strokes.map((s) => (
-              <path
-                key={s.id}
-                d={s.d}
-                stroke={s.color}
-                strokeWidth={s.width / 4}
-                fill="none"
-                strokeLinecap="round"
-                vectorEffect="non-scaling-stroke"
-                onPointerDown={() => eraseStroke(s)}
-                style={{ pointerEvents: tool === "eraser" ? "stroke" : "none" }}
-              />
+              <g key={s.id}>
+                <path
+                  d={s.d}
+                  stroke={s.color}
+                  strokeWidth={s.width / 4}
+                  fill="none"
+                  strokeLinecap="round"
+                  vectorEffect="non-scaling-stroke"
+                  style={{ pointerEvents: "none" }}
+                />
+                {tool === "eraser" && (
+                  <path
+                    d={s.d}
+                    stroke="transparent"
+                    strokeWidth={Math.max(14, s.width * 3)}
+                    fill="none"
+                    strokeLinecap="round"
+                    vectorEffect="non-scaling-stroke"
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                      eraseStroke(s);
+                    }}
+                    onPointerEnter={(e) => {
+                      if (e.buttons === 1) eraseStroke(s);
+                    }}
+                    style={{ pointerEvents: "stroke", cursor: "crosshair" }}
+                  />
+                )}
+              </g>
             ))}
           </svg>
 
@@ -211,6 +277,10 @@ export function Pitch({
               onDoubleClick={() => onChange((b) => ({ ...b, bubbles: b.bubbles.filter((x) => x.id !== t.id) }))}
               onPointerDown={(e) => {
                 e.stopPropagation();
+                if (tool === "eraser") {
+                  onChange((b) => ({ ...b, bubbles: b.bubbles.filter((x) => x.id !== t.id) }));
+                  return;
+                }
                 const move = (ev: PointerEvent) => {
                   const { x, y } = rel(ev);
                   onChange((b) => ({ ...b, bubbles: b.bubbles.map((x2) => (x2.id === t.id ? { ...x2, x, y } : x2)) }));
@@ -235,7 +305,7 @@ export function Pitch({
             return (
               <div
                 key={slot.id}
-                className="absolute flex w-14 -translate-x-1/2 -translate-y-1/2 flex-col items-center"
+                className="absolute flex w-16 -translate-x-1/2 -translate-y-1/2 flex-col items-center"
                 style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
                 onPointerDown={(e) => {
                   if (board.locked || tool !== "none") return;
@@ -246,12 +316,12 @@ export function Pitch({
                 <div className="relative">
                   <button
                     onClick={() => (a ? onPlayerClick(a) : onSlotClick(slot))}
-                    className={`flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border-2 bg-panel/90 shadow ${a ? statusBorderClass(a.status_id) : "border-primary/40"}`}
+                    className={`flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border-2 bg-panel/90 shadow ${a ? statusBorderClass(a.status_id) : "border-primary/40"}`}
                   >
                     {foto ? (
                       <img src={foto} alt={a!.apelido} className="h-full w-full object-cover" />
                     ) : (
-                      <span className="text-xs text-primary/70">+</span>
+                      <span className="text-sm text-primary/70">+</span>
                     )}
                   </button>
                   {a && (
@@ -259,21 +329,8 @@ export function Pitch({
                       <img
                         src={escudo(clubes[String(a.clube_id)], "30x30")}
                         alt=""
-                        className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-background object-contain"
+                        className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-background object-contain"
                       />
-                      <button
-                        onClick={() =>
-                          slot.extra
-                            ? onChange((b) => ({ ...b, slots: b.slots.filter((s) => s.id !== slot.id) }))
-                            : onChange((b) => ({
-                                ...b,
-                                slots: b.slots.map((s) => (s.id === slot.id ? { ...s, atletaId: null } : s)),
-                              }))
-                        }
-                        className="absolute -left-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] leading-none text-destructive-foreground"
-                      >
-                        ×
-                      </button>
                       {recomendados.includes(a.atleta_id) && (
                         <span className="absolute -top-2 right-0 text-[10px] text-accent">★</span>
                       )}
@@ -303,35 +360,76 @@ export function Pitch({
             + Jogador
           </button>
 
-          <select
-            value={board.formacao}
-            onChange={(e) => {
-              const f = e.target.value;
-              onChange((b) => {
-                const novos = buildFormation(f);
-                const byPos = new Map<number, number[]>();
-                for (const s of b.slots)
-                  if (s.atletaId) byPos.set(s.pos, [...(byPos.get(s.pos) ?? []), s.atletaId]);
-                const slots = novos.map((s) => {
-                  const pool = byPos.get(s.pos);
-                  return pool && pool.length ? { ...s, atletaId: pool.shift()! } : s;
+          <div className="absolute bottom-2 left-2 flex flex-col items-start gap-1">
+            <span className="rounded-lg border border-success/40 bg-background/70 px-2 py-0.5 font-display text-[11px] text-success">
+              Pontuação esperada: {esperadoTotal === null ? "…" : fmt(esperadoTotal, 2)}
+            </span>
+            <select
+              value={board.formacao}
+              onChange={(e) => {
+                const f = e.target.value;
+                onChange((b) => {
+                  const novos = buildFormation(f);
+                  const byPos = new Map<number, number[]>();
+                  for (const s of b.slots)
+                    if (s.atletaId) byPos.set(s.pos, [...(byPos.get(s.pos) ?? []), s.atletaId]);
+                  const slots = novos.map((s) => {
+                    const pool = byPos.get(s.pos);
+                    return pool && pool.length ? { ...s, atletaId: pool.shift()! } : s;
+                  });
+                  const extras = b.slots.filter((s) => s.extra);
+                  return { ...b, formacao: f, slots: [...slots, ...extras] };
                 });
-                const extras = b.slots.filter((s) => s.extra);
-                return { ...b, formacao: f, slots: [...slots, ...extras] };
-              });
-            }}
-            className="absolute bottom-2 left-2 rounded-lg border border-primary/30 bg-background/70 px-1.5 py-0.5 text-[10px]"
-          >
-            {(esquemas.length ? esquemas.map((e) => e.nome) : ["4-3-3", "4-4-2", "3-4-3"]).map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
+              }}
+              className="rounded-lg border border-primary/30 bg-background/70 px-1.5 py-0.5 text-[10px]"
+            >
+              {(esquemas.length ? esquemas.map((e) => e.nome) : ["4-3-3", "4-4-2", "3-4-3"]).map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </div>
 
           <span className="absolute bottom-2 right-2 rounded-lg border border-primary/30 bg-background/70 px-2 py-0.5 font-display text-[11px] text-accent">
             C$ {fmt(valorTotal, 2)}
           </span>
+        </div>
+      </div>
+
+      <div className="mt-3 rounded-xl border border-border bg-panel-2 p-2">
+        <p className="mb-2 font-display text-xs tracking-wide text-muted-foreground">Banco de reservas</p>
+        <div className="flex flex-wrap gap-3">
+          {board.bench.map((slot) => {
+            const a = slot.atletaId ? atletasById.get(slot.atletaId) : undefined;
+            const foto = a ? playerPhoto(a) : null;
+            return (
+              <div key={slot.id} className="flex w-14 flex-col items-center">
+                <div className="relative">
+                  <button
+                    onClick={() => (a ? onPlayerClick(a) : onBenchClick(slot))}
+                    className={`flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border-2 bg-panel shadow ${a ? statusBorderClass(a.status_id) : "border-border"}`}
+                  >
+                    {foto ? (
+                      <img src={foto} alt={a!.apelido} className="h-full w-full object-cover" />
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground">{POS_ABREV[slot.pos]}</span>
+                    )}
+                  </button>
+                  {a && (
+                    <img
+                      src={escudo(clubes[String(a.clube_id)], "30x30")}
+                      alt=""
+                      className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-background object-contain"
+                    />
+                  )}
+                </div>
+                <span className="mt-0.5 max-w-14 truncate text-[9px] leading-tight text-muted-foreground">
+                  {a ? a.apelido : POS_ABREV[slot.pos]}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
     </section>
