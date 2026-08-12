@@ -50,18 +50,28 @@ export function buildFormation(nome: string): SlotState[] {
   mids.forEach((count, idx) => {
     (ROW_X[count] ?? ROW_X[3]!).forEach((x) => push(4, x, midYs[idx] ?? 38));
   });
-  // defence: laterals wide, centre-backs deeper
+  // defence: laterals wide, centre-backs evenly spaced between them
   if (def >= 4) {
     const zag = def - 2;
-    push(2, 8, 62);
-    (ROW_X[zag] ?? ROW_X[2]!).forEach((x) => push(3, 22 + x * 0.56, 67));
-    push(2, 92, 62);
+    push(2, 10, 62);
+    for (let z = 0; z < zag; z++) push(3, 10 + (80 * (z + 1)) / (zag + 1), 67);
+    push(2, 90, 62);
   } else {
-    (ROW_X[def] ?? ROW_X[3]!).forEach((x) => push(3, x, 65));
+    for (let z = 0; z < def; z++) push(3, 10 + (80 * (z + 1)) / (def + 1), 65);
   }
   push(1, 50, 88);
   push(6, 88, 88);
   return slots;
+}
+
+export function buildBench(): SlotState[] {
+  return [1, 2, 3, 4, 5].map((pos, i) => ({
+    id: `bench-${i}-${Math.random().toString(36).slice(2, 8)}`,
+    pos,
+    x: 0,
+    y: 0,
+    atletaId: null,
+  }));
 }
 
 export function newBoard(nome = "Campinho 1", formacao = "4-3-3"): Board {
@@ -70,11 +80,13 @@ export function newBoard(nome = "Campinho 1", formacao = "4-3-3"): Board {
     nome,
     formacao,
     slots: buildFormation(formacao),
+    bench: buildBench(),
     strokes: [],
     bubbles: [],
     locked: false,
   };
 }
+
 
 const LS_KEY = "taticspro.boards.v1";
 
