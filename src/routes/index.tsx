@@ -41,11 +41,13 @@ export const Route = createFileRoute("/")({
 const HINT_KEY = "taticspro.hint.playerclick";
 
 function Countdown({ timestamp }: { timestamp: number }) {
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
+    setNow(Date.now());
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
+  if (now === null) return <span className="font-display tracking-wide text-success">…</span>;
   const diff = Math.max(0, timestamp * 1000 - now);
   const d = Math.floor(diff / 86400000);
   const h = Math.floor((diff % 86400000) / 3600000);
@@ -507,6 +509,12 @@ function Index() {
           </div>
         </div>
       )}
+
+      <p className="mt-6 text-center text-[10px] text-muted-foreground/70">
+        {mounted
+          ? `Atualizado às ${atualizado.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
+          : ""}
+      </p>
     </main>
   );
 }
