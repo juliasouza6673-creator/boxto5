@@ -187,6 +187,13 @@ function Index() {
   const atualizado = new Date(live?.ok ? live.atualizadoEm : (data?.ok ? data.atualizadoEm : Date.now()));
 
   const matchData = match?.partida_data ? new Date(match.partida_data.replace(" ", "T")) : null;
+  const { data: insights } = useQuery({
+    queryKey: ["match-insights", match?.clube_casa_id, match?.clube_visitante_id],
+    enabled: !!match,
+    staleTime: 15 * 60_000,
+    queryFn: () =>
+      insightsFn({ data: { casa: match!.clube_casa_id, fora: match!.clube_visitante_id } }),
+  });
   const linhas = useMemo(() => {
     if (!match) return [] as Array<{ pos: number; casa: Atleta[]; fora: Atleta[] }>;
     const sel = (clubeId: number, pos: number) =>
