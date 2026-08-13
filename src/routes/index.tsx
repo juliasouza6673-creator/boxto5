@@ -77,6 +77,9 @@ function Index() {
   const [picker, setPicker] = useState<{ slot: SlotState; bench: boolean } | null>(null);
   const [aberto, setAberto] = useState<Atleta | null>(null);
   const [best, setBest] = useState(false);
+  const [bestSG, setBestSG] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const [auth, setAuth] = useState(false);
   const [advanced, setAdvanced] = useState(false);
   const [match, setMatch] = useState<Partida | null>(null);
