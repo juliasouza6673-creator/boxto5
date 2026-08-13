@@ -13,6 +13,7 @@ import { Pitch } from "@/components/Pitch";
 import { PlayerPicker } from "@/components/PlayerPicker";
 import { PlayerModal } from "@/components/PlayerModal";
 import { BestRoundModal } from "@/components/BestRoundModal";
+import { BestSGModal } from "@/components/BestSGModal";
 import { AuthDialog } from "@/components/AuthDialog";
 import { AdvancedTools, type FillScope } from "@/components/AdvancedTools";
 
