@@ -155,6 +155,8 @@ export async function cedimentos(
     mediaBasicaCedida: basica / count,
     assistenciasCedidas: jogos.reduce((s, g) => s + (g.scout['A'] ?? 0), 0),
     golsCedidos: jogos.reduce((s, g) => s + (g.scout['G'] ?? 0), 0),
+    desarmesCedidos: jogos.reduce((s, g) => s + (g.scout['DS'] ?? 0), 0),
+    defesasCedidas: jogos.reduce((s, g) => s + (g.scout['DE'] ?? 0), 0),
     amostra: jogos.length,
   };
 }
