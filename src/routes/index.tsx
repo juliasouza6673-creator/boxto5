@@ -198,49 +198,55 @@ function Index() {
 
   return (
     <main className="mx-auto max-w-4xl px-3 pb-16 pt-3 sm:px-6">
-      <header className="mb-3 flex flex-wrap items-center gap-2">
-        <h1 className="font-display text-2xl uppercase tracking-wide">
+      <header className="mb-3 flex items-start justify-between gap-3">
+        <h1 className="font-display text-2xl uppercase leading-tight tracking-wide sm:text-3xl">
           Tatics<span className="text-accent">Pro</span>
         </h1>
-        <button
-          onClick={() => setBest(true)}
-          className="rounded-lg border border-accent px-2 py-1 text-xs font-semibold text-accent"
-        >
-          Melhores opções para rodada
-        </button>
-        <span className="flex-1" />
-        {userId ? (
+        <div className="flex shrink-0 flex-col items-center">
           <button
-            onClick={() => supabase.auth.signOut()}
-            className="rounded-lg border border-border px-3 py-1 text-xs text-muted-foreground"
+            onClick={() => (userId ? supabase.auth.signOut() : setAuth(true))}
+            className="flex flex-col items-center gap-0.5 text-muted-foreground hover:text-accent"
           >
-            Sair
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6">
+              <circle cx="12" cy="8" r="3.5" />
+              <path d="M4.5 20a7.5 7.5 0 0 1 15 0" strokeLinecap="round" />
+            </svg>
+            <span className="text-[10px] font-semibold">{userId ? "Sair" : "Entrar"}</span>
           </button>
-        ) : (
-          <button
-            onClick={() => setAuth(true)}
-            className="rounded-lg bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground"
-          >
-            Entrar
-          </button>
-        )}
+        </div>
       </header>
 
       <div className="mb-3 rounded-xl border border-border bg-panel px-3 py-2 text-xs text-muted-foreground">
-        {statusMercado !== undefined && (
-          <span
-            className={`mr-2 rounded-md border px-2 py-0.5 font-display tracking-wide ${mercadoAberto ? "border-success text-success" : "border-destructive text-destructive"}`}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          {statusMercado !== undefined && (
+            <span
+              className={`rounded-md border px-2 py-0.5 font-display tracking-wide ${mercadoAberto ? "border-success text-success" : "border-destructive text-destructive"}`}
+            >
+              Mercado {mercadoAberto ? "Aberto" : "Fechado"}
+            </span>
+          )}
+          {!!fechamento && (
+            <span>
+              Fecha em <Countdown timestamp={fechamento} />
+            </span>
+          )}
+        </div>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <button
+            onClick={() => setBest(true)}
+            className="rounded-lg border border-accent px-2 py-1.5 text-[11px] font-semibold text-accent sm:text-xs"
           >
-            Mercado {mercadoAberto ? "Aberto" : "Fechado"}
-          </span>
-        )}
-        {!!fechamento && (
-          <>
-            Fecha em <Countdown timestamp={fechamento} /> ·{" "}
-          </>
-        )}
-        <span>Atualizado às {atualizado.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
+            Melhores opções para rodada
+          </button>
+          <button
+            onClick={() => setBestSG(true)}
+            className="rounded-lg border border-success px-2 py-1.5 text-[11px] font-semibold text-success sm:text-xs"
+          >
+            Melhores SGs
+          </button>
+        </div>
       </div>
+
 
       {!userId && !avisoFechado && (
         <div className="mb-3 flex items-center gap-2 rounded-xl border border-warning/50 bg-panel px-3 py-2 text-xs">
