@@ -4,6 +4,7 @@ import type { Esquema } from "./cartola-types";
 export type BestPick = {
   atleta_id: number;
   apelido: string;
+  foto?: string | null;
   clube_id: number;
   posicao_id: number;
   preco: number;
