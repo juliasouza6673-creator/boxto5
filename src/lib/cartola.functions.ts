@@ -151,11 +151,11 @@ export const getBestOfRound = createServerFn({ method: "GET" }).handler(async ()
     const byPos: Record<string, BestPick[]> = {};
 
     const candidatos = mercado.atletas
-      .filter((a) => [7, 2, 5].includes(a.status_id))
+      .filter((a) => a.status_id === 7 || a.status_id === 2)
       .filter((a) => om[a.clube_id])
-      .filter((a) => (a.jogos_num ?? 0) >= 2);
+      .filter((a) => (a.jogos_num ?? 0) >= 1);
 
-    for (const posId of [1, 2, 3, 4, 5]) {
+    for (const posId of [1, 2, 3, 4, 5, 6]) {
       const pool = candidatos
         .filter((a) => a.posicao_id === posId)
         .sort((a, b) => (b.media_num ?? 0) - (a.media_num ?? 0))
@@ -175,6 +175,7 @@ export const getBestOfRound = createServerFn({ method: "GET" }).handler(async ()
         scored.push({
           atleta_id: a.atleta_id,
           apelido: a.apelido,
+          foto: a.foto ?? null,
           clube_id: a.clube_id,
           posicao_id: posId,
           preco: a.preco_num,
@@ -188,6 +189,7 @@ export const getBestOfRound = createServerFn({ method: "GET" }).handler(async ()
       }
       byPos[String(posId)] = scored.sort((x, y) => y.score - x.score).slice(0, 5);
     }
+
     return { ok: true as const, rodada, byPos };
   } catch (err) {
     return { ok: false as const, error: (err as Error).message };
