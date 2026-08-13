@@ -60,21 +60,24 @@ export function PlayerPicker({ posicaoId, atletas, clubes, usados, recomendados 
           />
           <div className="flex gap-2 overflow-x-auto pb-1">
             <button
-              onClick={() => setTeamFilter(null)}
-              className={`shrink-0 rounded-lg border px-3 py-1 text-xs ${teamFilter === null ? "border-accent text-accent" : "border-border text-muted-foreground"}`}
+              onClick={() => setTeamFilter([])}
+              className={`shrink-0 rounded-lg border px-3 py-1 text-xs ${!teamFilter.length ? "border-accent text-accent" : "border-border text-muted-foreground"}`}
             >
               Todos
             </button>
             {times.map((c) => (
               <button
                 key={c.id}
-                onClick={() => setTeamFilter(teamFilter === c.id ? null : c.id)}
+                onClick={() =>
+                  setTeamFilter((t) => (t.includes(c.id) ? t.filter((x) => x !== c.id) : [...t, c.id]))
+                }
                 title={c.nome}
-                className={`shrink-0 rounded-lg border p-1 ${teamFilter === c.id ? "border-accent" : "border-border"}`}
+                className={`shrink-0 rounded-lg border p-1 ${teamFilter.includes(c.id) ? "border-accent bg-accent/10" : "border-border"}`}
               >
                 <img src={escudo(c, "30x30")} alt={c.nome} className="h-6 w-6 object-contain" />
               </button>
             ))}
+
           </div>
         </div>
 
