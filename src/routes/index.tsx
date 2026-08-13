@@ -381,7 +381,18 @@ function Index() {
         />
       )}
 
-      {best && <BestRoundModal clubes={clubes} onClose={() => setBest(false)} />}
+      {best && (
+        <BestRoundModal
+          clubes={clubes}
+          atletas={atletas}
+          onOpenPlayer={(a) => {
+            setBest(false);
+            setAberto(a);
+          }}
+          onClose={() => setBest(false)}
+        />
+      )}
+      {bestSG && <BestSGModal clubes={clubes} onClose={() => setBestSG(false)} />}
       {auth && <AuthDialog onClose={() => setAuth(false)} />}
 
       {match && (
