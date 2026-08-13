@@ -472,7 +472,18 @@ function Index() {
                                   <span className="block text-[10px] text-muted-foreground">
                                     {POS_ABREV[a.posicao_id]} · méd {fmt(a.media_num, 1)}
                                   </span>
+                                  {insights?.ok && (
+                                    <span className="block text-[10px]">
+                                      <span className="text-success">
+                                        cede {fmt(insights.cedida[`${side === 0 ? "casa" : "fora"}-${a.posicao_id}`] ?? 0, 1)}
+                                      </span>{" "}
+                                      <span className="text-foreground/80">
+                                        mando {fmt(insights.mediaMando[String(a.atleta_id)] ?? 0, 1)}
+                                      </span>
+                                    </span>
+                                  )}
                                 </span>
+
                               </button>
                             ) : (
                               <span key={side} />
