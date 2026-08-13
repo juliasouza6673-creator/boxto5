@@ -70,10 +70,13 @@ export const getPlayerAnalysis = createServerFn({ method: "POST" })
       const info = om[data.clubeId];
       if (!info) return { ok: true as const, semJogo: true, rodada };
       const contrario = info.mando === "casa" ? ("fora" as const) : ("casa" as const);
-      const [histRaw, histContrario, ced] = await Promise.all([
+      const [histRaw, histContrario, ced, minut, formTime, formAdv] = await Promise.all([
         m.playerMandoHistory(data.atletaId, info.mando, rodada, 5),
         m.playerMandoHistory(data.atletaId, contrario, rodada, 5),
         m.cedimentos(info.adversario, data.posicaoId, info.mando, rodada, 5),
+        m.minutagem(data.atletaId, rodada, 5),
+        m.teamForm(data.clubeId, info.mando, rodada, 5),
+        m.teamForm(info.adversario, contrario, rodada, 5),
       ]);
       // Sem jogos no mando previsto: usa as últimas 5 em casa como referência
       const fallbackCasa =
@@ -94,6 +97,9 @@ export const getPlayerAnalysis = createServerFn({ method: "POST" })
         usouFallbackCasa: !histRaw.length && fallbackCasa.length > 0,
         mediaMando,
         cedimentos: ced,
+        minutagem: minut,
+        formTime,
+        formAdversario: formAdv,
         pontuacaoEsperada: mediaMando + ced.mediaCedida,
         confianca: Math.min(1, (hist.length + ced.amostra / 3) / 8),
         enfrentaPosicoes: m.enfrentaPosicoes(data.posicaoId),
@@ -102,6 +108,7 @@ export const getPlayerAnalysis = createServerFn({ method: "POST" })
       return { ok: false as const, error: (err as Error).message };
     }
   });
+
 
 export const getExpectedPoints = createServerFn({ method: "POST" })
   .inputValidator((d: { jogadores: Array<{ atletaId: number; clubeId: number; posicaoId: number }> }) => d)
