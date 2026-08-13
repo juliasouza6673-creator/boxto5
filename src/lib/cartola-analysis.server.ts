@@ -173,3 +173,98 @@ export function enfrentaPosicoes(posicaoId: number): number[] {
       return [];
   }
 }
+
+/* ---------------- Resultados por mando / SG ---------------- */
+
+export type TeamGame = {
+  rodada: number;
+  adversario: number;
+  golsPro: number;
+  golsContra: number;
+  resultado: "V" | "E" | "D";
+};
+
+export type TeamForm = {
+  clube_id: number;
+  mando: "casa" | "fora";
+  jogos: TeamGame[];
+  vitorias: number;
+  empates: number;
+  derrotas: number;
+  golsSofridos: number;
+  golsFeitos: number;
+  /** jogos em que NÃO sofreu gol (preservou SG) */
+  sgMantidos: number;
+  /** jogos em que NÃO fez gol (cedeu SG ao adversário) */
+  sgCedidos: number;
+};
+
+/** Últimos N jogos de um clube no mando indicado, com placar oficial. */
+export async function teamForm(
+  clubeId: number,
+  mando: "casa" | "fora",
+  rodadaAtual: number,
+  n = 5,
+): Promise<TeamForm> {
+  const jogos: TeamGame[] = [];
+  for (let r = rodadaAtual - 1; r >= 1 && jogos.length < n; r--) {
+    let resp: PartidasResp | null = null;
+    try {
+      resp = await getPartidas(r);
+    } catch {
+      continue;
+    }
+    for (const m of resp?.partidas ?? []) {
+      const emCasa = m.clube_casa_id === clubeId;
+      const emFora = m.clube_visitante_id === clubeId;
+      if (!emCasa && !emFora) continue;
+      if ((emCasa ? "casa" : "fora") !== mando) continue;
+      const gm = m.placar_oficial_mandante;
+      const gv = m.placar_oficial_visitante;
+      if (gm === null || gm === undefined || gv === null || gv === undefined) continue;
+      const golsPro = emCasa ? gm : gv;
+      const golsContra = emCasa ? gv : gm;
+      jogos.push({
+        rodada: r,
+        adversario: emCasa ? m.clube_visitante_id : m.clube_casa_id,
+        golsPro,
+        golsContra,
+        resultado: golsPro > golsContra ? "V" : golsPro === golsContra ? "E" : "D",
+      });
+    }
+  }
+  return {
+    clube_id: clubeId,
+    mando,
+    jogos,
+    vitorias: jogos.filter((g) => g.resultado === "V").length,
+    empates: jogos.filter((g) => g.resultado === "E").length,
+    derrotas: jogos.filter((g) => g.resultado === "D").length,
+    golsSofridos: jogos.reduce((s, g) => s + g.golsContra, 0),
+    golsFeitos: jogos.reduce((s, g) => s + g.golsPro, 0),
+    sgMantidos: jogos.filter((g) => g.golsContra === 0).length,
+    sgCedidos: jogos.filter((g) => g.golsPro === 0).length,
+  };
+}
+
+/** Minutagem estimada: presença do atleta nas últimas N rodadas do clube. */
+export async function minutagem(atletaId: number, rodadaAtual: number, n = 5) {
+  let jogosDisputados = 0;
+  let rodadas = 0;
+  const detalhe: Array<{ rodada: number; jogou: boolean; pontuacao: number }> = [];
+  for (let r = rodadaAtual - 1; r >= 1 && rodadas < n; r--) {
+    const pts = await getPontuados(r).catch(() => null);
+    if (!pts) continue;
+    rodadas++;
+    const a = pts.atletas?.[String(atletaId)];
+    if (a) jogosDisputados++;
+    detalhe.push({ rodada: r, jogou: !!a, pontuacao: a?.pontuacao ?? 0 });
+  }
+  const base = rodadas || 1;
+  return {
+    rodadas,
+    jogosDisputados,
+    minutosEstimados: Math.round((jogosDisputados / base) * 90),
+    detalhe,
+  };
+}
