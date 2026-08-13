@@ -14,15 +14,17 @@ type Props = {
 };
 
 export function PlayerPicker({ posicaoId, atletas, clubes, usados, recomendados = [], onPick, onClose }: Props) {
-  const [teamFilter, setTeamFilter] = useState<number | null>(null);
+  const [teamFilter, setTeamFilter] = useState<number[]>([]);
   const [busca, setBusca] = useState("");
+
+  const ordem = (s: number) => (s === 7 ? 0 : s === 2 ? 1 : 2);
 
   const lista = useMemo(() => {
     return atletas
       .filter((a) => a.posicao_id === posicaoId && isEscalavel(a))
-      .filter((a) => (teamFilter ? a.clube_id === teamFilter : true))
+      .filter((a) => (teamFilter.length ? teamFilter.includes(a.clube_id) : true))
       .filter((a) => a.apelido.toLowerCase().includes(busca.toLowerCase()))
-      .sort((a, b) => b.media_num - a.media_num);
+      .sort((a, b) => ordem(a.status_id) - ordem(b.status_id) || b.media_num - a.media_num);
   }, [atletas, posicaoId, teamFilter, busca]);
 
   const times = useMemo(
@@ -32,6 +34,7 @@ export function PlayerPicker({ posicaoId, atletas, clubes, usados, recomendados 
         .sort((a, b) => a.nome.localeCompare(b.nome)),
     [clubes, atletas],
   );
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-background/80 backdrop-blur-sm" onClick={onClose}>
