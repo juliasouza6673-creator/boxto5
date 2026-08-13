@@ -105,8 +105,11 @@ export type Cedimentos = {
   mediaBasicaCedida: number;
   assistenciasCedidas: number;
   golsCedidos: number;
+  desarmesCedidos: number;
+  defesasCedidas: number;
   amostra: number;
 };
+
 
 /** What the opponent conceded to players of the same position, in the equivalent mando */
 export async function cedimentos(
