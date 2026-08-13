@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Atleta, Clube, Partida } from "@/lib/cartola-types";
 import { POS_NOME } from "@/lib/cartola-types";
 import { escudo, fmt } from "@/lib/cartola-ui";
@@ -53,6 +53,19 @@ export function MatchTicker({ partidas, clubes, atletas, onSelectMatch }: Props)
     return out.sort(() => Math.random() - 0.5);
   }, [atletas, clubes, partidas]);
 
+  const scroller = useRef<HTMLDivElement>(null);
+  const [paused, setPaused] = useState(false);
+  useEffect(() => {
+    if (paused) return;
+    const t = setInterval(() => {
+      const el = scroller.current;
+      if (!el) return;
+      const half = el.scrollWidth / 2;
+      el.scrollLeft = el.scrollLeft >= half ? el.scrollLeft - half : el.scrollLeft + 1;
+    }, 30);
+    return () => clearInterval(t);
+  }, [paused]);
+
   const [tip, setTip] = useState(0);
   useEffect(() => {
     if (!dicas.length) return;
@@ -64,8 +77,15 @@ export function MatchTicker({ partidas, clubes, atletas, onSelectMatch }: Props)
 
   return (
     <div className="space-y-2">
-      <div className="relative overflow-hidden rounded-xl border border-border bg-panel py-2">
-        <div className="flex w-max animate-ticker gap-3">
+      <div
+        ref={scroller}
+        onPointerDown={() => setPaused(true)}
+        onPointerUp={() => setPaused(false)}
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
+        className="relative snap-x overflow-x-auto rounded-xl border border-border bg-panel py-2"
+      >
+        <div className="flex w-max gap-3 px-2">
           {items.map((p, i) => {
             const casa = clubes[String(p.clube_casa_id)];
             const fora = clubes[String(p.clube_visitante_id)];
@@ -74,7 +94,7 @@ export function MatchTicker({ partidas, clubes, atletas, onSelectMatch }: Props)
               <button
                 key={`${p.clube_casa_id}-${i}`}
                 onClick={() => onSelectMatch(p)}
-                className="flex shrink-0 items-center gap-2 rounded-lg border border-border bg-panel-2 px-3 py-1.5 transition-colors hover:border-accent"
+                className="flex shrink-0 snap-start items-center gap-2 rounded-lg border border-border bg-panel-2 px-3 py-1.5 transition-colors hover:border-accent"
               >
                 <img src={escudo(casa, "30x30")} alt={casa?.nome ?? ""} className="h-6 w-6 object-contain" />
                 <span className="font-display text-xs tracking-wide text-muted-foreground">x</span>

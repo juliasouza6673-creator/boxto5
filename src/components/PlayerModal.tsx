@@ -23,6 +23,53 @@ function ScoutLine({ scout }: { scout: Scout | null | undefined }) {
   );
 }
 
+
+type FormData = {
+  jogos: Array<{ rodada: number; adversario: number; golsPro: number; golsContra: number; resultado: "V" | "E" | "D" }>;
+  vitorias: number;
+  empates: number;
+  derrotas: number;
+  golsSofridos: number;
+  golsFeitos: number;
+  sgMantidos: number;
+  sgCedidos: number;
+};
+
+function TeamFormBox({
+  titulo,
+  form,
+  clubes,
+}: {
+  titulo: string;
+  form: FormData;
+  clubes: Record<string, Clube>;
+}) {
+  if (!form?.jogos?.length)
+    return <p className="text-center text-xs text-muted-foreground">Sem retrospecto nesse mando.</p>;
+  return (
+    <div className="rounded-lg border border-border bg-panel-2 p-2 text-center">
+      <p className="mb-1 font-display text-xs tracking-wide text-muted-foreground">{titulo}</p>
+      <p className="mb-1 text-[11px]">
+        <span className="text-success">{form.vitorias}V</span> · {form.empates}E ·{" "}
+        <span className="text-destructive">{form.derrotas}D</span> · {form.golsFeitos} gols feitos ·{" "}
+        {form.golsSofridos} sofridos · <span className="text-success">{form.sgMantidos} SGs</span>
+      </p>
+      <div className="flex flex-wrap justify-center gap-1">
+        {form.jogos.map((g) => (
+          <span
+            key={g.rodada}
+            className={`flex items-center gap-1 rounded border px-1 py-0.5 text-[10px] ${g.resultado === "V" ? "border-success text-success" : g.resultado === "E" ? "border-border text-muted-foreground" : "border-destructive text-destructive"}`}
+          >
+            R{g.rodada}
+            <img src={escudo(clubes[String(g.adversario)], "30x30")} alt="" className="h-3.5 w-3.5 object-contain" />
+            {g.golsPro}x{g.golsContra}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function useAnalysis(a: Atleta | null) {
   const fn = useServerFn(getPlayerAnalysis);
   return useQuery({
@@ -215,6 +262,10 @@ export function PlayerModal({ atleta, atletas, clubes, onOpenPlayer, onSell, onC
                     atleta.variacao_num >= 0 ? "Valorização" : "Desvalorização",
                     fmt(Math.abs(atleta.variacao_num), 2),
                   ],
+                  [
+                    "Minutagem média (5j)",
+                    ok ? `${ok.minutagem.minutosEstimados}' · ${ok.minutagem.jogosDisputados}/${ok.minutagem.rodadas} jogos` : "-",
+                  ],
                 ].map(([k, v]) => (
                   <div key={k} className="rounded-lg border border-border bg-panel-2 px-3 py-2">
                     <p className="text-[11px] text-muted-foreground">{k}</p>
@@ -311,6 +362,13 @@ export function PlayerModal({ atleta, atletas, clubes, onOpenPlayer, onSell, onC
                       <span>escalação provável indisponível</span>
                     )}
                   </div>
+                  <div className="mt-3">
+                    <TeamFormBox
+                      titulo={`${clube?.abreviacao ?? "Time"} — últimos jogos ${ok.mando === "casa" ? "em casa" : "fora"}`}
+                      form={ok.formTime}
+                      clubes={clubes}
+                    />
+                  </div>
                 </section>
               )}
             </div>
@@ -319,8 +377,17 @@ export function PlayerModal({ atleta, atletas, clubes, onOpenPlayer, onSell, onC
           {tab === "cedimentos" && ok && (
             <div className="space-y-4">
               <p className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                <img src={escudo(clube, "30x30")} alt="" className="h-5 w-5 object-contain" /> x
-                <img src={escudo(adversario, "30x30")} alt="" className="h-5 w-5 object-contain" />
+                <img
+                  src={escudo(ok.mando === "casa" ? clube : adversario, "45x45")}
+                  alt=""
+                  className="h-6 w-6 object-contain"
+                />
+                x
+                <img
+                  src={escudo(ok.mando === "casa" ? adversario : clube, "45x45")}
+                  alt=""
+                  className="h-6 w-6 object-contain"
+                />
                 <span>({ok.mando === "casa" ? "mandante" : "visitante"})</span>
               </p>
 
@@ -330,6 +397,18 @@ export function PlayerModal({ atleta, atletas, clubes, onOpenPlayer, onSell, onC
                   ["Média básica cedida", fmt(ok.cedimentos.mediaBasicaCedida, 2)],
                   ["Assistências cedidas", String(ok.cedimentos.assistenciasCedidas)],
                   ["Gols cedidos", String(ok.cedimentos.golsCedidos)],
+                  ["Desarmes cedidos", String(ok.cedimentos.desarmesCedidos)],
+                  ...(atleta.posicao_id === 1
+                    ? ([["Defesas cedidas", String(ok.cedimentos.defesasCedidas)]] as Array<[string, string]>)
+                    : []),
+                  ...([1, 2, 3].includes(atleta.posicao_id)
+                    ? ([
+                        [
+                          "SGs cedidos pelo adversário",
+                          `${ok.formAdversario.sgCedidos} em ${ok.formAdversario.jogos.length}`,
+                        ],
+                      ] as Array<[string, string]>)
+                    : []),
                   ["Média do jogador no mando", fmt(ok.mediaMando, 2)],
                   ["Pontuação esperada", fmt(ok.pontuacaoEsperada, 2)],
                 ].map(([k, v]) => (
@@ -354,15 +433,31 @@ export function PlayerModal({ atleta, atletas, clubes, onOpenPlayer, onSell, onC
                 </h4>
                 {ok.cedimentos.jogos.map((g, i) => (
                   <div key={`${g.apelido}-${i}`} className="rounded-lg border border-border bg-panel-2 px-3 py-2">
-                    <p className="mb-1 text-center text-xs text-muted-foreground">
-                      {g.apelido} · rodada {g.rodada} · {fmt(g.pontuacao, 2)} pts
-                    </p>
+                    <div className="mb-1 flex items-center gap-2">
+                      <img
+                        src={escudo(clubes[String(g.clube_id ?? 0)], "30x30")}
+                        alt=""
+                        className="h-5 w-5 shrink-0 object-contain"
+                      />
+                      <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{g.apelido}</span>
+                      <span className="shrink-0 pl-3 text-[11px] text-muted-foreground">R{g.rodada}</span>
+                      <span
+                        className={`shrink-0 pl-3 font-display text-sm ${g.pontuacao >= 0 ? "text-success" : "text-destructive"}`}
+                      >
+                        {fmt(g.pontuacao, 2)}
+                      </span>
+                    </div>
                     <ScoutLine scout={g.scout} />
                   </div>
                 ))}
                 {!ok.cedimentos.jogos.length && (
                   <p className="text-center text-xs text-muted-foreground">Sem amostra suficiente.</p>
                 )}
+                <TeamFormBox
+                  titulo={`${adversario?.abreviacao ?? "Adversário"} — últimos jogos ${ok.mandoContrario === "casa" ? "em casa" : "fora"}`}
+                  form={ok.formAdversario}
+                  clubes={clubes}
+                />
               </section>
             </div>
           )}

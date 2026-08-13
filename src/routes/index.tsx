@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { getBootstrap, getExpectedPoints, getMarketStatus } from "@/lib/cartola.functions";
+import { getBootstrap, getExpectedPoints, getMarketStatus, getMatchInsights } from "@/lib/cartola.functions";
 import type { Atleta, Clube, Partida } from "@/lib/cartola-types";
 import { POS_ABREV, POS_NOME } from "@/lib/cartola-types";
 import { escudo, fmt, isEscalavel, playerPhoto } from "@/lib/cartola-ui";
@@ -13,6 +13,7 @@ import { Pitch } from "@/components/Pitch";
 import { PlayerPicker } from "@/components/PlayerPicker";
 import { PlayerModal } from "@/components/PlayerModal";
 import { BestRoundModal } from "@/components/BestRoundModal";
+import { BestSGModal } from "@/components/BestSGModal";
 import { AuthDialog } from "@/components/AuthDialog";
 import { AdvancedTools, type FillScope } from "@/components/AdvancedTools";
 
@@ -40,11 +41,13 @@ export const Route = createFileRoute("/")({
 const HINT_KEY = "taticspro.hint.playerclick";
 
 function Countdown({ timestamp }: { timestamp: number }) {
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
+    setNow(Date.now());
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
+  if (now === null) return <span className="font-display tracking-wide text-success">…</span>;
   const diff = Math.max(0, timestamp * 1000 - now);
   const d = Math.floor(diff / 86400000);
   const h = Math.floor((diff % 86400000) / 3600000);
@@ -61,6 +64,7 @@ function Index() {
   const bootstrapFn = useServerFn(getBootstrap);
   const statusFn = useServerFn(getMarketStatus);
   const expectedFn = useServerFn(getExpectedPoints);
+  const insightsFn = useServerFn(getMatchInsights);
   const { data, isLoading } = useQuery({
     queryKey: ["bootstrap"],
     queryFn: () => bootstrapFn(),
@@ -77,6 +81,9 @@ function Index() {
   const [picker, setPicker] = useState<{ slot: SlotState; bench: boolean } | null>(null);
   const [aberto, setAberto] = useState<Atleta | null>(null);
   const [best, setBest] = useState(false);
+  const [bestSG, setBestSG] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const [auth, setAuth] = useState(false);
   const [advanced, setAdvanced] = useState(false);
   const [match, setMatch] = useState<Partida | null>(null);
@@ -183,6 +190,13 @@ function Index() {
   const atualizado = new Date(live?.ok ? live.atualizadoEm : (data?.ok ? data.atualizadoEm : Date.now()));
 
   const matchData = match?.partida_data ? new Date(match.partida_data.replace(" ", "T")) : null;
+  const { data: insights } = useQuery({
+    queryKey: ["match-insights", match?.clube_casa_id, match?.clube_visitante_id],
+    enabled: !!match,
+    staleTime: 15 * 60_000,
+    queryFn: () =>
+      insightsFn({ data: { casa: match!.clube_casa_id, fora: match!.clube_visitante_id } }),
+  });
   const linhas = useMemo(() => {
     if (!match) return [] as Array<{ pos: number; casa: Atleta[]; fora: Atleta[] }>;
     const sel = (clubeId: number, pos: number) =>
@@ -198,49 +212,55 @@ function Index() {
 
   return (
     <main className="mx-auto max-w-4xl px-3 pb-16 pt-3 sm:px-6">
-      <header className="mb-3 flex flex-wrap items-center gap-2">
-        <h1 className="font-display text-2xl uppercase tracking-wide">
+      <header className="mb-3 flex items-start justify-between gap-3">
+        <h1 className="font-display text-2xl uppercase leading-tight tracking-wide sm:text-3xl">
           Tatics<span className="text-accent">Pro</span>
         </h1>
-        <button
-          onClick={() => setBest(true)}
-          className="rounded-lg border border-accent px-2 py-1 text-xs font-semibold text-accent"
-        >
-          Melhores opções para rodada
-        </button>
-        <span className="flex-1" />
-        {userId ? (
+        <div className="flex shrink-0 flex-col items-center">
           <button
-            onClick={() => supabase.auth.signOut()}
-            className="rounded-lg border border-border px-3 py-1 text-xs text-muted-foreground"
+            onClick={() => (userId ? supabase.auth.signOut() : setAuth(true))}
+            className="flex flex-col items-center gap-0.5 text-muted-foreground hover:text-accent"
           >
-            Sair
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6">
+              <circle cx="12" cy="8" r="3.5" />
+              <path d="M4.5 20a7.5 7.5 0 0 1 15 0" strokeLinecap="round" />
+            </svg>
+            <span className="text-[10px] font-semibold">{userId ? "Sair" : "Entrar"}</span>
           </button>
-        ) : (
-          <button
-            onClick={() => setAuth(true)}
-            className="rounded-lg bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground"
-          >
-            Entrar
-          </button>
-        )}
+        </div>
       </header>
 
       <div className="mb-3 rounded-xl border border-border bg-panel px-3 py-2 text-xs text-muted-foreground">
-        {statusMercado !== undefined && (
-          <span
-            className={`mr-2 rounded-md border px-2 py-0.5 font-display tracking-wide ${mercadoAberto ? "border-success text-success" : "border-destructive text-destructive"}`}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          {statusMercado !== undefined && (
+            <span
+              className={`rounded-md border px-2 py-0.5 font-display tracking-wide ${mercadoAberto ? "border-success text-success" : "border-destructive text-destructive"}`}
+            >
+              Mercado {mercadoAberto ? "Aberto" : "Fechado"}
+            </span>
+          )}
+          {!!fechamento && (
+            <span>
+              Fecha em <Countdown timestamp={fechamento} />
+            </span>
+          )}
+        </div>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <button
+            onClick={() => setBest(true)}
+            className="rounded-lg border border-accent px-2 py-1.5 text-[11px] font-semibold text-accent sm:text-xs"
           >
-            Mercado {mercadoAberto ? "Aberto" : "Fechado"}
-          </span>
-        )}
-        {!!fechamento && (
-          <>
-            Fecha em <Countdown timestamp={fechamento} /> ·{" "}
-          </>
-        )}
-        <span>Atualizado às {atualizado.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
+            Melhores opções para rodada
+          </button>
+          <button
+            onClick={() => setBestSG(true)}
+            className="rounded-lg border border-success px-2 py-1.5 text-[11px] font-semibold text-success sm:text-xs"
+          >
+            Melhores SGs
+          </button>
+        </div>
       </div>
+
 
       {!userId && !avisoFechado && (
         <div className="mb-3 flex items-center gap-2 rounded-xl border border-warning/50 bg-panel px-3 py-2 text-xs">
@@ -372,7 +392,18 @@ function Index() {
         />
       )}
 
-      {best && <BestRoundModal clubes={clubes} onClose={() => setBest(false)} />}
+      {best && (
+        <BestRoundModal
+          clubes={clubes}
+          atletas={atletas}
+          onOpenPlayer={(a) => {
+            setBest(false);
+            setAberto(a);
+          }}
+          onClose={() => setBest(false)}
+        />
+      )}
+      {bestSG && <BestSGModal clubes={clubes} onClose={() => setBestSG(false)} />}
       {auth && <AuthDialog onClose={() => setAuth(false)} />}
 
       {match && (
@@ -451,7 +482,18 @@ function Index() {
                                   <span className="block text-[10px] text-muted-foreground">
                                     {POS_ABREV[a.posicao_id]} · méd {fmt(a.media_num, 1)}
                                   </span>
+                                  {insights?.ok && (
+                                    <span className="block text-[10px]">
+                                      <span className="text-success">
+                                        cede {fmt(insights.cedida[`${side === 0 ? "casa" : "fora"}-${a.posicao_id}`] ?? 0, 1)}
+                                      </span>{" "}
+                                      <span className="text-foreground/80">
+                                        mando {fmt(insights.mediaMando[String(a.atleta_id)] ?? 0, 1)}
+                                      </span>
+                                    </span>
+                                  )}
                                 </span>
+
                               </button>
                             ) : (
                               <span key={side} />
@@ -467,6 +509,12 @@ function Index() {
           </div>
         </div>
       )}
+
+      <p className="mt-6 text-center text-[10px] text-muted-foreground/70">
+        {mounted
+          ? `Atualizado às ${atualizado.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
+          : ""}
+      </p>
     </main>
   );
 }

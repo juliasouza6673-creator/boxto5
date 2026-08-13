@@ -14,15 +14,17 @@ type Props = {
 };
 
 export function PlayerPicker({ posicaoId, atletas, clubes, usados, recomendados = [], onPick, onClose }: Props) {
-  const [teamFilter, setTeamFilter] = useState<number | null>(null);
+  const [teamFilter, setTeamFilter] = useState<number[]>([]);
   const [busca, setBusca] = useState("");
+
+  const ordem = (s: number) => (s === 7 ? 0 : s === 2 ? 1 : 2);
 
   const lista = useMemo(() => {
     return atletas
       .filter((a) => a.posicao_id === posicaoId && isEscalavel(a))
-      .filter((a) => (teamFilter ? a.clube_id === teamFilter : true))
+      .filter((a) => (teamFilter.length ? teamFilter.includes(a.clube_id) : true))
       .filter((a) => a.apelido.toLowerCase().includes(busca.toLowerCase()))
-      .sort((a, b) => b.media_num - a.media_num);
+      .sort((a, b) => ordem(a.status_id) - ordem(b.status_id) || b.media_num - a.media_num);
   }, [atletas, posicaoId, teamFilter, busca]);
 
   const times = useMemo(
@@ -32,6 +34,7 @@ export function PlayerPicker({ posicaoId, atletas, clubes, usados, recomendados 
         .sort((a, b) => a.nome.localeCompare(b.nome)),
     [clubes, atletas],
   );
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-background/80 backdrop-blur-sm" onClick={onClose}>
@@ -57,21 +60,24 @@ export function PlayerPicker({ posicaoId, atletas, clubes, usados, recomendados 
           />
           <div className="flex gap-2 overflow-x-auto pb-1">
             <button
-              onClick={() => setTeamFilter(null)}
-              className={`shrink-0 rounded-lg border px-3 py-1 text-xs ${teamFilter === null ? "border-accent text-accent" : "border-border text-muted-foreground"}`}
+              onClick={() => setTeamFilter([])}
+              className={`shrink-0 rounded-lg border px-3 py-1 text-xs ${!teamFilter.length ? "border-accent text-accent" : "border-border text-muted-foreground"}`}
             >
               Todos
             </button>
             {times.map((c) => (
               <button
                 key={c.id}
-                onClick={() => setTeamFilter(teamFilter === c.id ? null : c.id)}
+                onClick={() =>
+                  setTeamFilter((t) => (t.includes(c.id) ? t.filter((x) => x !== c.id) : [...t, c.id]))
+                }
                 title={c.nome}
-                className={`shrink-0 rounded-lg border p-1 ${teamFilter === c.id ? "border-accent" : "border-border"}`}
+                className={`shrink-0 rounded-lg border p-1 ${teamFilter.includes(c.id) ? "border-accent bg-accent/10" : "border-border"}`}
               >
                 <img src={escudo(c, "30x30")} alt={c.nome} className="h-6 w-6 object-contain" />
               </button>
             ))}
+
           </div>
         </div>
 
