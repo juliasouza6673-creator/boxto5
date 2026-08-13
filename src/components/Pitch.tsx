@@ -42,7 +42,8 @@ export function Pitch({
   const ref = useRef<HTMLDivElement>(null);
   const [tool, setTool] = useState<Tool>("none");
   const [color, setColor] = useState("#ff7a18");
-  const [width, setWidth] = useState(3);
+  const [width, setWidth] = useState(12);
+  const [drawOpen, setDrawOpen] = useState(false);
   const [redoStack, setRedoStack] = useState<Stroke[]>([]);
   const drawing = useRef<string | null>(null);
   const dragId = useRef<string | null>(null);
@@ -166,53 +167,7 @@ export function Pitch({
         </button>
       </div>
 
-      <div className="flex gap-2">
-        <div className="flex flex-col items-center gap-1.5">
-          {tools.map(([t, icon, label]) => (
-            <button
-              key={t}
-              title={label}
-              onClick={() =>
-                t === "clear" ? onChange((b) => ({ ...b, strokes: [], bubbles: [] })) : setTool(tool === t ? "none" : (t as Tool))
-              }
-              className={`h-8 w-8 rounded-lg border text-xs ${tool === t ? "border-accent text-accent" : "border-border text-muted-foreground"}`}
-            >
-              {icon}
-            </button>
-          ))}
-          <button
-            title="Desfazer"
-            onClick={undo}
-            className="h-8 w-8 rounded-lg border border-border text-xs text-muted-foreground"
-          >
-            ↶
-          </button>
-          <button
-            title="Refazer"
-            onClick={redo}
-            className="h-8 w-8 rounded-lg border border-border text-xs text-muted-foreground"
-          >
-            ↷
-          </button>
-          <input
-            type="color"
-            value={color}
-            onChange={(e) => setColor(e.target.value)}
-            className="h-8 w-8 rounded-lg border border-border bg-transparent"
-          />
-          <div className="flex h-28 w-8 items-center justify-center">
-            <input
-              type="range"
-              min={1}
-              max={16}
-              value={width}
-              onChange={(e) => setWidth(Number(e.target.value))}
-              className="w-24 -rotate-90 accent-accent"
-            />
-          </div>
-          <span className="text-[10px] text-muted-foreground">{width}px</span>
-        </div>
-
+      <div>
         <div
           ref={ref}
           onPointerDown={onPointerDown}
@@ -231,6 +186,63 @@ export function Pitch({
           <div className="pointer-events-none absolute inset-x-2 top-1/2 border-t border-primary/20" />
           <div className="pointer-events-none absolute bottom-2 left-1/2 h-[16%] w-[55%] -translate-x-1/2 border border-b-0 border-primary/25" />
           <div className="pointer-events-none absolute top-2 left-1/2 h-[16%] w-[55%] -translate-x-1/2 border border-t-0 border-primary/25" />
+
+          <div className="absolute left-2 top-2 z-20">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setDrawOpen((o) => !o);
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="rounded-lg border border-primary/30 bg-background/70 px-2 py-0.5 text-[10px] backdrop-blur"
+            >
+              {drawOpen ? "▲" : "▼"} Desenhar
+            </button>
+            {drawOpen && (
+              <div
+                onPointerDown={(e) => e.stopPropagation()}
+                className="mt-1 flex max-w-[220px] flex-wrap items-center gap-1 rounded-lg border border-primary/30 bg-background/70 p-1.5 backdrop-blur"
+              >
+                {tools.map(([t, icon, label]) => (
+                  <button
+                    key={t}
+                    title={label}
+                    onClick={() =>
+                      t === "clear"
+                        ? onChange((b) => ({ ...b, strokes: [], bubbles: [] }))
+                        : setTool(tool === t ? "none" : (t as Tool))
+                    }
+                    className={`h-7 w-7 rounded-md border text-[11px] ${tool === t ? "border-accent text-accent" : "border-border text-muted-foreground"}`}
+                  >
+                    {icon}
+                  </button>
+                ))}
+                <button title="Desfazer" onClick={undo} className="h-7 w-7 rounded-md border border-border text-[11px] text-muted-foreground">
+                  ↶
+                </button>
+                <button title="Refazer" onClick={redo} className="h-7 w-7 rounded-md border border-border text-[11px] text-muted-foreground">
+                  ↷
+                </button>
+                <input
+                  type="color"
+                  value={color}
+                  onChange={(e) => setColor(e.target.value)}
+                  className="h-7 w-7 rounded-md border border-border bg-transparent"
+                />
+                <span className="flex w-full items-center gap-1">
+                  <input
+                    type="range"
+                    min={1}
+                    max={24}
+                    value={width}
+                    onChange={(e) => setWidth(Number(e.target.value))}
+                    className="h-6 flex-1 accent-accent"
+                  />
+                  <span className="text-[10px] text-muted-foreground">{width}px</span>
+                </span>
+              </div>
+            )}
+          </div>
 
           <svg
             viewBox="0 0 100 100"
@@ -398,13 +410,13 @@ export function Pitch({
       </div>
 
       <div className="mt-3 rounded-xl border border-border bg-panel-2 p-2">
-        <p className="mb-2 font-display text-xs tracking-wide text-muted-foreground">Banco de reservas</p>
-        <div className="flex flex-wrap gap-3">
+        <p className="mb-2 text-center font-display text-xs tracking-wide text-muted-foreground">Banco de reservas</p>
+        <div className="flex justify-center gap-2 overflow-x-auto">
           {board.bench.map((slot) => {
             const a = slot.atletaId ? atletasById.get(slot.atletaId) : undefined;
             const foto = a ? playerPhoto(a) : null;
             return (
-              <div key={slot.id} className="flex w-14 flex-col items-center">
+              <div key={slot.id} className="flex w-14 shrink-0 flex-col items-center">
                 <div className="relative">
                   <button
                     onClick={() => (a ? onPlayerClick(a) : onBenchClick(slot))}
