@@ -101,6 +101,8 @@ export async function playerMandoHistory(
 
 export type Cedimentos = {
   jogos: HistoryGame[];
+  top5: HistoryGame[];
+  recorrencia: number;
   mediaCedida: number;
   mediaBasicaCedida: number;
   assistenciasCedidas: number;
