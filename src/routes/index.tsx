@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { getBootstrap, getExpectedPoints, getMarketStatus, getMatchInsights } from "@/lib/cartola.functions";
+import { getBootstrap, getExpectedPoints, getMarketStatus, getMatchInsights, getParciais } from "@/lib/cartola.functions";
 import type { Atleta, Clube, Partida } from "@/lib/cartola-types";
 import { POS_ABREV, POS_NOME } from "@/lib/cartola-types";
 import { escudo, fmt, isEscalavel, playerPhoto } from "@/lib/cartola-ui";
