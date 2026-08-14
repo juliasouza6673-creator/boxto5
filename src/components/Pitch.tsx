@@ -162,7 +162,65 @@ export function Pitch({
           <div className="pointer-events-none absolute bottom-2 left-1/2 h-[16%] w-[55%] -translate-x-1/2 border border-b-0 border-primary/25" />
           <div className="pointer-events-none absolute top-2 left-1/2 h-[16%] w-[55%] -translate-x-1/2 border border-t-0 border-primary/25" />
 
-          <div className="absolute left-2 top-2 z-20">
+          <div
+            onPointerDown={(e) => e.stopPropagation()}
+            className="absolute left-1/2 top-2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-lg border border-primary/30 bg-background/70 px-1.5 py-1 backdrop-blur"
+          >
+            {[
+              { t: "Ferramentas avançadas", i: "🧪", f: onOpenAdvanced },
+              {
+                t: board.locked ? "Travado (clique para liberar)" : "Livre (clique para travar)",
+                i: board.locked ? "🔒" : "🔓",
+                f: () => onChange((b) => ({ ...b, locked: !b.locked })),
+              },
+              {
+                t: "Resetar posições",
+                i: "🎯",
+                f: () =>
+                  onChange((b) => ({
+                    ...b,
+                    slots: buildFormation(b.formacao).map((s, i) => ({ ...s, atletaId: b.slots[i]?.atletaId ?? null })),
+                  })),
+              },
+              {
+                t: "Vender time",
+                i: "💸",
+                f: () =>
+                  onChange((b) => ({
+                    ...b,
+                    slots: b.slots.map((s) => ({ ...s, atletaId: null })),
+                    bench: b.bench.map((s) => ({ ...s, atletaId: null })),
+                  })),
+              },
+              { t: "Excluir escalação", i: "🗑️", f: onDelete },
+            ].map((b2) => (
+              <button
+                key={b2.t}
+                title={b2.t}
+                aria-label={b2.t}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  b2.f();
+                }}
+                className="h-7 w-7 rounded-md border border-border text-[12px] hover:border-accent"
+              >
+                {b2.i}
+              </button>
+            ))}
+            <button
+              title="MC — mostrar média cedida no lugar do preço"
+              aria-label="Média cedida"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMcOn((v) => !v);
+              }}
+              className={`h-7 rounded-md border px-1.5 font-display text-[10px] ${mcOn ? "border-accent text-accent" : "border-border text-muted-foreground"}`}
+            >
+              MC
+            </button>
+          </div>
+
+          <div className="absolute left-2 top-10 z-20">
             <button
               onClick={(e) => {
                 e.stopPropagation();
