@@ -324,6 +324,9 @@ function Index() {
               clubes={clubes}
               recomendados={recomendados}
               esperadoTotal={esperadoTotal}
+              mercadoAberto={statusMercado !== 2}
+              parciais={parciais?.ok ? parciais.pontos : {}}
+              cedidas={esperado?.ok ? esperado.cedidas : {}}
               onChange={(patch) => update(board.id, patch)}
               onSlotClick={(slot) => setPicker({ slot, bench: false })}
               onBenchClick={(slot) => setPicker({ slot, bench: true })}
