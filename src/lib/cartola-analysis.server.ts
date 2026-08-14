@@ -143,15 +143,20 @@ export async function cedimentos(
   }
   const weights = posicaoId === 1 ? BASIC_GK : BASIC_LINE;
   const count = jogos.length || 1;
-  const soma = jogos.reduce((s, g) => s + g.pontuacao, 0);
+  // Média cedida = média dos 5 maiores pontuadores da posição contra esse adversário no mando
+  const top5 = [...jogos].sort((a, b) => b.pontuacao - a.pontuacao).slice(0, 5);
+  const somaTop = top5.reduce((s, g) => s + g.pontuacao, 0);
   const basica = jogos.reduce((s, g) => {
     let v = 0;
     for (const [k, w] of Object.entries(weights)) v += (g.scout[k] ?? 0) * w;
     return s + v;
   }, 0);
+  const acima5 = jogos.filter((g) => g.pontuacao > 5).length;
   return {
     jogos: jogos.sort((a, b) => b.rodada - a.rodada),
-    mediaCedida: soma / count,
+    top5,
+    recorrencia: jogos.length ? (acima5 / jogos.length) * 100 : 0,
+    mediaCedida: somaTop / 5,
     mediaBasicaCedida: basica / count,
     assistenciasCedidas: jogos.reduce((s, g) => s + (g.scout['A'] ?? 0), 0),
     golsCedidos: jogos.reduce((s, g) => s + (g.scout['G'] ?? 0), 0),
