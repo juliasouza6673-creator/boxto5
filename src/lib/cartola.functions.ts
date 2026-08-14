@@ -130,6 +130,7 @@ export const getExpectedPoints = createServerFn({ method: "POST" })
       const om = await m.opponentMap(rodada);
       const cedCache = new Map<string, Awaited<ReturnType<typeof m.cedimentos>>>();
       const out: Record<string, number> = {};
+      const cedidas: Record<string, number> = {};
       for (const j of data.jogadores.slice(0, 20)) {
         const info = om[j.clubeId];
         if (!info) continue;
