@@ -103,6 +103,7 @@ export const getPlayerAnalysis = createServerFn({ method: "POST" })
         adversario: info.adversario,
         historico: hist,
         historicoContrario: histContrario,
+        ultimasRodadas,
         usouFallbackCasa: !histRaw.length && fallbackCasa.length > 0,
         mediaMando,
         cedimentos: ced,
