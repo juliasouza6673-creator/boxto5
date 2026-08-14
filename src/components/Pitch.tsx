@@ -15,6 +15,9 @@ type Props = {
   clubes: Record<string, Clube>;
   recomendados: number[];
   esperadoTotal: number | null;
+  mercadoAberto: boolean;
+  parciais: Record<string, number>;
+  cedidas: Record<string, number>;
   onChange: (patch: (b: Board) => Board) => void;
   onSlotClick: (slot: SlotState) => void;
   onBenchClick: (slot: SlotState) => void;
