@@ -237,34 +237,56 @@ export const getBestSG = createServerFn({ method: "GET" }).handler(async () => {
     const status = await m.getStatus();
     const rodada = status.rodada_atual ?? 1;
     const partidas = await m.getPartidas(rodada);
-    const out = [] as Array<{
+    type Item = {
       clube_id: number;
       adversario: number;
       mando: "casa" | "fora";
+      clube_casa_id: number;
+      clube_visitante_id: number;
       defesa: Awaited<ReturnType<typeof m.teamForm>>;
       ataqueAdversario: Awaited<ReturnType<typeof m.teamForm>>;
-      score: number;
-    }>;
+      chance: number;
+    };
+    const out: Item[] = [];
     for (const p of partidas.partidas ?? []) {
+      const opcoes: Item[] = [];
       for (const lado of ["casa", "fora"] as const) {
         const clube = lado === "casa" ? p.clube_casa_id : p.clube_visitante_id;
         const adv = lado === "casa" ? p.clube_visitante_id : p.clube_casa_id;
         const advMando = lado === "casa" ? ("fora" as const) : ("casa" as const);
+        // amostra maior (até 8 jogos) sempre respeitando o mando
         const [defesa, ataqueAdversario] = await Promise.all([
-          m.teamForm(clube, lado, rodada, 5),
-          m.teamForm(adv, advMando, rodada, 5),
+          m.teamForm(clube, lado, rodada, 8),
+          m.teamForm(adv, advMando, rodada, 8),
         ]);
-        const amostra = Math.max(1, defesa.jogos.length);
-        const amostraAdv = Math.max(1, ataqueAdversario.jogos.length);
-        const score =
-          (defesa.sgMantidos / amostra) * 60 +
-          (ataqueAdversario.sgCedidos / amostraAdv) * 30 +
-          Math.max(0, 10 - (defesa.golsSofridos / amostra) * 5) +
-          Math.max(0, 10 - (ataqueAdversario.golsFeitos / amostraAdv) * 5);
-        out.push({ clube_id: clube, adversario: adv, mando: lado, defesa, ataqueAdversario, score });
+        const nD = Math.max(1, defesa.jogos.length);
+        const nA = Math.max(1, ataqueAdversario.jogos.length);
+        const golsSofridosPorJogo = defesa.golsSofridos / nD;
+        const golsFeitosAdvPorJogo = ataqueAdversario.golsFeitos / nA;
+        // expectativa de gols do adversário nesse confronto
+        let lambda = Math.sqrt(Math.max(0.15, golsSofridosPorJogo) * Math.max(0.15, golsFeitosAdvPorJogo));
+        lambda *= lado === "casa" ? 0.9 : 1.12; // peso de mando
+        const poisson = Math.exp(-lambda);
+        const empirico = (defesa.sgMantidos / nD) * 0.5 + (ataqueAdversario.sgCedidos / nA) * 0.5;
+        const confianca = Math.min(1, (defesa.jogos.length + ataqueAdversario.jogos.length) / 10);
+        const chance = Math.round(
+          Math.max(4, Math.min(88, (poisson * 0.6 + empirico * 0.4) * 100 * (0.75 + 0.25 * confianca))),
+        );
+        opcoes.push({
+          clube_id: clube,
+          adversario: adv,
+          mando: lado,
+          clube_casa_id: p.clube_casa_id,
+          clube_visitante_id: p.clube_visitante_id,
+          defesa,
+          ataqueAdversario,
+          chance,
+        });
       }
+      const melhor = opcoes.sort((a, b) => b.chance - a.chance)[0];
+      if (melhor) out.push(melhor);
     }
-    return { ok: true as const, rodada, ranking: out.sort((a, b) => b.score - a.score) };
+    return { ok: true as const, rodada, ranking: out.sort((a, b) => b.chance - a.chance) };
   } catch (err) {
     return { ok: false as const, error: (err as Error).message };
   }
