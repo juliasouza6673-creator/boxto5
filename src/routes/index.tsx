@@ -20,13 +20,13 @@ import { AdvancedTools, type FillScope } from "@/components/AdvancedTools";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Tatics Pro — escalação e análise de cedimentos do Cartola FC" },
+      { title: "Box to 5 — escalação e análise de cedimentos do Cartola FC" },
       {
         name: "description",
         content:
           "Monte escalações no campo tático, veja médias por mando, cedimentos do adversário e as melhores opções da rodada do Cartola FC.",
       },
-      { property: "og:title", content: "Tatics Pro — escalação e scouts do Cartola FC" },
+      { property: "og:title", content: "Box to 5 — escalação e scouts do Cartola FC" },
       {
         property: "og:description",
         content: "Campo tático editável, cedimentos automáticos e dicas por confronto para a sua rodada.",
