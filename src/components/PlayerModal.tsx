@@ -5,6 +5,8 @@ import { getPlayerAnalysis } from "@/lib/cartola.functions";
 import type { Atleta, Clube, Scout } from "@/lib/cartola-types";
 import { POS_NOME, STATUS_NOME } from "@/lib/cartola-types";
 import { escudo, fmt, isScoutNegative, playerPhoto, statusBorderClass } from "@/lib/cartola-ui";
+import { ScoreChart } from "@/components/ScoreChart";
+import { computeMNO } from "@/lib/mno";
 
 type Analysis = Awaited<ReturnType<typeof getPlayerAnalysis>>;
 
