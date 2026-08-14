@@ -334,3 +334,16 @@ export const getMatchInsights = createServerFn({ method: "POST" })
       return { ok: false as const, error: (err as Error).message };
     }
   });
+
+/** Parciais ao vivo da rodada (mercado fechado). */
+export const getParciais = createServerFn({ method: "GET" }).handler(async () => {
+  const m = await import("./cartola-analysis.server");
+  try {
+    const p = await m.getParciais();
+    const pontos: Record<string, number> = {};
+    for (const [id, a] of Object.entries(p.atletas ?? {})) pontos[id] = a.pontuacao ?? 0;
+    return { ok: true as const, rodada: p.rodada, pontos, atualizadoEm: Date.now() };
+  } catch (err) {
+    return { ok: false as const, error: (err as Error).message, pontos: {} as Record<string, number> };
+  }
+});
