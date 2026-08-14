@@ -10,9 +10,16 @@ export type BestPick = {
   preco: number;
   jogos: number;
   media: number;
+  mediaMando: number;
   mando: "casa" | "fora";
   adversario: number;
   mediaCedida: number;
+  recorrencia: number;
+  desarmesCedidos: number;
+  defesasCedidas: number;
+  golsCedidos: number;
+  minutos: number;
+  tendencia: "subindo" | "estavel" | "caindo";
   score: number;
 };
 
