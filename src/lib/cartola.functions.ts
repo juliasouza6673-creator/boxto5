@@ -143,8 +143,9 @@ export const getExpectedPoints = createServerFn({ method: "POST" })
         }
         const mediaMando = hist.length ? hist.reduce((s, g) => s + g.pontuacao, 0) / 5 : 0;
         out[String(j.atletaId)] = mediaMando + ced.mediaCedida;
+        cedidas[String(j.atletaId)] = ced.mediaCedida;
       }
-      return { ok: true as const, esperado: out };
+      return { ok: true as const, esperado: out, cedidas };
     } catch (err) {
       return { ok: false as const, error: (err as Error).message };
     }
