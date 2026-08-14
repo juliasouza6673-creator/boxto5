@@ -437,8 +437,15 @@ export function PlayerModal({ atleta, atletas, clubes, onOpenPlayer, onSell, onC
               </p>
 
               <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-lg border-2 border-accent bg-panel-2 px-3 py-2 text-center">
+                  <p className="text-[11px] text-muted-foreground">Média cedida (top 5)</p>
+                  <p className="font-display text-lg tracking-wide text-accent">{fmt(ok.cedimentos.mediaCedida, 2)}</p>
+                </div>
+                <div className="rounded-lg border-2 border-accent bg-panel-2 px-3 py-2 text-center">
+                  <p className="text-[11px] text-muted-foreground">Média do jogador no mando</p>
+                  <p className="font-display text-lg tracking-wide text-accent">{fmt(ok.mediaMando, 2)}</p>
+                </div>
                 {[
-                  ["Média cedida", fmt(ok.cedimentos.mediaCedida, 2)],
                   ["Média básica cedida", fmt(ok.cedimentos.mediaBasicaCedida, 2)],
                   ["Assistências cedidas", String(ok.cedimentos.assistenciasCedidas)],
                   ["Gols cedidos", String(ok.cedimentos.golsCedidos)],
