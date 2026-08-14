@@ -131,6 +131,14 @@ function Index() {
     queryFn: () => expectedFn({ data: { jogadores: titulares } }),
   });
 
+  const parciaisFn = useServerFn(getParciais);
+  const { data: parciais } = useQuery({
+    queryKey: ["parciais"],
+    queryFn: () => parciaisFn(),
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+
   const esperadoTotal = !titulares.length
     ? 0
     : esperado?.ok
