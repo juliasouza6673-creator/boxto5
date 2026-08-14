@@ -51,6 +51,7 @@ export function Pitch({
   const [width, setWidth] = useState(12);
   const [drawOpen, setDrawOpen] = useState(false);
   const [redoStack, setRedoStack] = useState<Stroke[]>([]);
+  const [mcOn, setMcOn] = useState(false);
   const drawing = useRef<string | null>(null);
   const dragId = useRef<string | null>(null);
 
