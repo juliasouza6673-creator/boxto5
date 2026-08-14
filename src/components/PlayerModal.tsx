@@ -461,7 +461,6 @@ export function PlayerModal({ atleta, atletas, clubes, onOpenPlayer, onSell, onC
                         ],
                       ] as Array<[string, string]>)
                     : []),
-                  ["Média do jogador no mando", fmt(ok.mediaMando, 2)],
                   ["Pontuação esperada", fmt(ok.pontuacaoEsperada, 2)],
                 ].map(([k, v]) => (
                   <div key={k} className="rounded-lg border border-border bg-panel-2 px-3 py-2 text-center">
