@@ -167,7 +167,7 @@ export const getBestOfRound = createServerFn({ method: "GET" }).handler(async ()
       const pool = candidatos
         .filter((a) => a.posicao_id === posId)
         .sort((a, b) => (b.media_num ?? 0) - (a.media_num ?? 0))
-        .slice(0, 12);
+        .slice(0, 16);
       const scored: BestPick[] = [];
       for (const a of pool) {
         const info = om[a.clube_id]!;
@@ -180,6 +180,25 @@ export const getBestOfRound = createServerFn({ method: "GET" }).handler(async ()
         const jogos = a.jogos_num ?? 0;
         const peso = Math.min(1, jogos / 8);
         const media = a.media_num ?? 0;
+
+        const [hist, minut] = await Promise.all([
+          posId === 6 ? Promise.resolve([]) : m.playerMandoHistory(a.atleta_id, info.mando, rodada, 5),
+          posId === 6 ? Promise.resolve(null) : m.minutagem(a.atleta_id, rodada, 5),
+        ]);
+        const mediaMando = hist.length ? hist.reduce((s, g) => s + g.pontuacao, 0) / hist.length : media;
+        const minutos = minut?.minutosEstimados ?? 90;
+        // Tendência via média móvel de 3 vs anteriores
+        const ord = [...hist].sort((x, y) => x.rodada - y.rodada).map((g) => g.pontuacao);
+        const mm3 = ord.slice(-3);
+        const antes = ord.slice(0, -3);
+        const avg = (arr: number[]) => (arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : 0);
+        const delta = mm3.length ? avg(mm3) - (antes.length ? avg(antes) : avg(mm3)) : 0;
+        const tendencia = delta > 0.8 ? ("subindo" as const) : delta < -0.8 ? ("caindo" as const) : ("estavel" as const);
+
+        const fatorMin = 0.6 + 0.4 * Math.min(1, minutos / 90);
+        const bonusTend = tendencia === "subindo" ? 1.08 : tendencia === "caindo" ? 0.92 : 1;
+        const bonusRec = 1 + (ced.recorrencia / 100) * 0.25;
+
         scored.push({
           atleta_id: a.atleta_id,
           apelido: a.apelido,
@@ -189,13 +208,20 @@ export const getBestOfRound = createServerFn({ method: "GET" }).handler(async ()
           preco: a.preco_num,
           jogos,
           media,
+          mediaMando,
           mando: info.mando,
           adversario: info.adversario,
           mediaCedida: ced.mediaCedida,
-          score: (media + ced.mediaCedida) * (0.6 + 0.4 * peso),
+          recorrencia: ced.recorrencia,
+          desarmesCedidos: ced.desarmesCedidos,
+          defesasCedidas: ced.defesasCedidas,
+          golsCedidos: ced.golsCedidos,
+          minutos,
+          tendencia,
+          score: (mediaMando * 0.6 + media * 0.4 + ced.mediaCedida) * (0.6 + 0.4 * peso) * fatorMin * bonusTend * bonusRec,
         });
       }
-      byPos[String(posId)] = scored.sort((x, y) => y.score - x.score).slice(0, 5);
+      byPos[String(posId)] = scored.sort((x, y) => y.score - x.score).slice(0, 10);
     }
 
     return { ok: true as const, rodada, byPos };
