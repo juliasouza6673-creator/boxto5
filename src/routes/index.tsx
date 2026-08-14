@@ -222,7 +222,7 @@ function Index() {
     <main className="mx-auto max-w-4xl px-3 pb-16 pt-3 sm:px-6">
       <header className="mb-3 flex items-start justify-between gap-3">
         <h1 className="font-display text-2xl uppercase leading-tight tracking-wide sm:text-3xl">
-          Tatics<span className="text-accent">Pro</span>
+          Box to <span className="text-accent">5</span>
         </h1>
         <div className="flex shrink-0 flex-col items-center">
           <button
