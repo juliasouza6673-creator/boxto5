@@ -15,6 +15,9 @@ type Props = {
   clubes: Record<string, Clube>;
   recomendados: number[];
   esperadoTotal: number | null;
+  mercadoAberto: boolean;
+  parciais: Record<string, number>;
+  cedidas: Record<string, number>;
   onChange: (patch: (b: Board) => Board) => void;
   onSlotClick: (slot: SlotState) => void;
   onBenchClick: (slot: SlotState) => void;
@@ -31,6 +34,9 @@ export function Pitch({
   clubes,
   recomendados,
   esperadoTotal,
+  mercadoAberto,
+  parciais,
+  cedidas,
   onChange,
   onSlotClick,
   onBenchClick,
@@ -45,6 +51,7 @@ export function Pitch({
   const [width, setWidth] = useState(12);
   const [drawOpen, setDrawOpen] = useState(false);
   const [redoStack, setRedoStack] = useState<Stroke[]>([]);
+  const [mcOn, setMcOn] = useState(false);
   const drawing = useRef<string | null>(null);
   const dragId = useRef<string | null>(null);
 
@@ -126,46 +133,14 @@ export function Pitch({
 
   return (
     <section className="panel p-3">
-      <div className="mb-2 flex flex-wrap items-center gap-2">
+      <div className="mb-2 flex items-center gap-2">
         <input
           value={board.nome}
           onChange={(e) => onRename(e.target.value)}
           className="min-w-0 flex-1 bg-transparent font-display text-lg tracking-wide outline-none"
         />
-        <button
-          onClick={onOpenAdvanced}
-          className="rounded-lg border border-accent px-2 py-1 text-xs font-semibold text-accent"
-        >
-          Ferramentas avançadas
-        </button>
-        <button
-          onClick={() => onChange((b) => ({ ...b, locked: !b.locked }))}
-          className="rounded-lg border border-border px-2 py-1 text-xs text-muted-foreground"
-        >
-          {board.locked ? "🔒 Travado" : "🔓 Livre"}
-        </button>
-        <button
-          onClick={() => onChange((b) => ({ ...b, slots: buildFormation(b.formacao).map((s, i) => ({ ...s, atletaId: b.slots[i]?.atletaId ?? null })) }))}
-          className="rounded-lg border border-border px-2 py-1 text-xs text-muted-foreground"
-        >
-          Resetar posições
-        </button>
-        <button
-          onClick={() =>
-            onChange((b) => ({
-              ...b,
-              slots: b.slots.map((s) => ({ ...s, atletaId: null })),
-              bench: b.bench.map((s) => ({ ...s, atletaId: null })),
-            }))
-          }
-          className="rounded-lg border border-border px-2 py-1 text-xs text-muted-foreground"
-        >
-          Vender time
-        </button>
-        <button onClick={onDelete} className="rounded-lg border border-border px-2 py-1 text-xs text-destructive">
-          Excluir
-        </button>
       </div>
+
 
       <div>
         <div
@@ -187,7 +162,65 @@ export function Pitch({
           <div className="pointer-events-none absolute bottom-2 left-1/2 h-[16%] w-[55%] -translate-x-1/2 border border-b-0 border-primary/25" />
           <div className="pointer-events-none absolute top-2 left-1/2 h-[16%] w-[55%] -translate-x-1/2 border border-t-0 border-primary/25" />
 
-          <div className="absolute left-2 top-2 z-20">
+          <div
+            onPointerDown={(e) => e.stopPropagation()}
+            className="absolute left-1/2 top-2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-lg border border-primary/30 bg-background/70 px-1.5 py-1 backdrop-blur"
+          >
+            {[
+              { t: "Ferramentas avançadas", i: "🧪", f: onOpenAdvanced },
+              {
+                t: board.locked ? "Travado (clique para liberar)" : "Livre (clique para travar)",
+                i: board.locked ? "🔒" : "🔓",
+                f: () => onChange((b) => ({ ...b, locked: !b.locked })),
+              },
+              {
+                t: "Resetar posições",
+                i: "🎯",
+                f: () =>
+                  onChange((b) => ({
+                    ...b,
+                    slots: buildFormation(b.formacao).map((s, i) => ({ ...s, atletaId: b.slots[i]?.atletaId ?? null })),
+                  })),
+              },
+              {
+                t: "Vender time",
+                i: "💸",
+                f: () =>
+                  onChange((b) => ({
+                    ...b,
+                    slots: b.slots.map((s) => ({ ...s, atletaId: null })),
+                    bench: b.bench.map((s) => ({ ...s, atletaId: null })),
+                  })),
+              },
+              { t: "Excluir escalação", i: "🗑️", f: onDelete },
+            ].map((b2) => (
+              <button
+                key={b2.t}
+                title={b2.t}
+                aria-label={b2.t}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  b2.f();
+                }}
+                className="h-7 w-7 rounded-md border border-border text-[12px] hover:border-accent"
+              >
+                {b2.i}
+              </button>
+            ))}
+            <button
+              title="MC — mostrar média cedida no lugar do preço"
+              aria-label="Média cedida"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMcOn((v) => !v);
+              }}
+              className={`h-7 rounded-md border px-1.5 font-display text-[10px] ${mcOn ? "border-accent text-accent" : "border-border text-muted-foreground"}`}
+            >
+              MC
+            </button>
+          </div>
+
+          <div className="absolute left-2 top-10 z-20">
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -352,7 +385,15 @@ export function Pitch({
                 <span className="mt-0.5 max-w-16 truncate rounded bg-background/60 px-1 text-[9px] leading-tight">
                   {a ? a.apelido : POS_ABREV[slot.pos]}
                 </span>
-                {a && <span className="text-[8px] text-accent">C$ {fmt(a.preco_num, 1)}</span>}
+                {a && (
+                  <span className="rounded bg-black px-1 text-[9px] font-bold text-white">
+                    {!mercadoAberto
+                      ? `${fmt(parciais[String(a.atleta_id)] ?? 0, 1)} pts`
+                      : mcOn
+                        ? `MC ${fmt(cedidas[String(a.atleta_id)] ?? 0, 1)}`
+                        : `C$ ${fmt(a.preco_num, 1)}`}
+                  </span>
+                )}
               </div>
             );
           })}
@@ -374,7 +415,15 @@ export function Pitch({
 
           <div className="absolute bottom-2 left-2 flex flex-col items-start gap-1">
             <span className="rounded-lg border border-success/40 bg-background/70 px-2 py-0.5 font-display text-[11px] text-success">
-              Pontuação esperada: {esperadoTotal === null ? "…" : fmt(esperadoTotal, 2)}
+              {mercadoAberto
+                ? `Pontuação esperada: ${esperadoTotal === null ? "…" : fmt(esperadoTotal, 2)}`
+                : `Pontuação: ${fmt(
+                    board.slots.reduce(
+                      (s, sl) => s + (sl.atletaId ? (parciais[String(sl.atletaId)] ?? 0) : 0),
+                      0,
+                    ),
+                    2,
+                  )}`}
             </span>
             <select
               value={board.formacao}

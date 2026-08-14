@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { getBootstrap, getExpectedPoints, getMarketStatus, getMatchInsights } from "@/lib/cartola.functions";
+import { getBootstrap, getExpectedPoints, getMarketStatus, getMatchInsights, getParciais } from "@/lib/cartola.functions";
 import type { Atleta, Clube, Partida } from "@/lib/cartola-types";
 import { POS_ABREV, POS_NOME } from "@/lib/cartola-types";
 import { escudo, fmt, isEscalavel, playerPhoto } from "@/lib/cartola-ui";
@@ -20,13 +20,13 @@ import { AdvancedTools, type FillScope } from "@/components/AdvancedTools";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Tatics Pro — escalação e análise de cedimentos do Cartola FC" },
+      { title: "Box to 5 — escalação e análise de cedimentos do Cartola FC" },
       {
         name: "description",
         content:
           "Monte escalações no campo tático, veja médias por mando, cedimentos do adversário e as melhores opções da rodada do Cartola FC.",
       },
-      { property: "og:title", content: "Tatics Pro — escalação e scouts do Cartola FC" },
+      { property: "og:title", content: "Box to 5 — escalação e scouts do Cartola FC" },
       {
         property: "og:description",
         content: "Campo tático editável, cedimentos automáticos e dicas por confronto para a sua rodada.",
@@ -131,6 +131,14 @@ function Index() {
     queryFn: () => expectedFn({ data: { jogadores: titulares } }),
   });
 
+  const parciaisFn = useServerFn(getParciais);
+  const { data: parciais } = useQuery({
+    queryKey: ["parciais"],
+    queryFn: () => parciaisFn(),
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+
   const esperadoTotal = !titulares.length
     ? 0
     : esperado?.ok
@@ -214,7 +222,7 @@ function Index() {
     <main className="mx-auto max-w-4xl px-3 pb-16 pt-3 sm:px-6">
       <header className="mb-3 flex items-start justify-between gap-3">
         <h1 className="font-display text-2xl uppercase leading-tight tracking-wide sm:text-3xl">
-          Tatics<span className="text-accent">Pro</span>
+          Box to <span className="text-accent">5</span>
         </h1>
         <div className="flex shrink-0 flex-col items-center">
           <button
@@ -324,6 +332,9 @@ function Index() {
               clubes={clubes}
               recomendados={recomendados}
               esperadoTotal={esperadoTotal}
+              mercadoAberto={statusMercado !== 2}
+              parciais={parciais?.ok ? parciais.pontos : {}}
+              cedidas={esperado?.ok ? esperado.cedidas : {}}
               onChange={(patch) => update(board.id, patch)}
               onSlotClick={(slot) => setPicker({ slot, bench: false })}
               onBenchClick={(slot) => setPicker({ slot, bench: true })}

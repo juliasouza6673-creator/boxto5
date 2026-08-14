@@ -5,6 +5,8 @@ import { getPlayerAnalysis } from "@/lib/cartola.functions";
 import type { Atleta, Clube, Scout } from "@/lib/cartola-types";
 import { POS_NOME, STATUS_NOME } from "@/lib/cartola-types";
 import { escudo, fmt, isScoutNegative, playerPhoto, statusBorderClass } from "@/lib/cartola-ui";
+import { ScoreChart } from "@/components/ScoreChart";
+import { computeMNO } from "@/lib/mno";
 
 type Analysis = Awaited<ReturnType<typeof getPlayerAnalysis>>;
 
@@ -185,6 +187,19 @@ export function PlayerModal({ atleta, atletas, clubes, onOpenPlayer, onSell, onC
 
   const recomendado = ok ? ok.cedimentos.mediaCedida >= Math.max(2, ok.mediaMando * 0.8) : false;
 
+  const mno = useMemo(() => {
+    const rodada = analysis?.ok && "rodada" in analysis ? (analysis.rodada ?? 1) : 1;
+    const ultimoReal = ok?.ultimasRodadas.find((r) => r.pontuacao !== null)?.pontuacao ?? atleta.pontos_num;
+    return computeMNO({
+      rodada,
+      preco_atual: atleta.preco_num,
+      pontos_ultima: atleta.pontos_num,
+      jogou_ultima: atleta.pontos_num !== 0,
+      pontos_ultimo_jogo_real: ultimoReal,
+      jogos_disputados: atleta.jogos_num,
+    });
+  }, [analysis, ok, atleta]);
+
   return (
     <div
       className="fixed inset-0 z-[70] flex items-center justify-center bg-background/85 p-3 backdrop-blur-sm"
@@ -207,7 +222,12 @@ export function PlayerModal({ atleta, atletas, clubes, onOpenPlayer, onSell, onC
             </span>
           )}
           <div className="min-w-0 flex-1">
-            <h3 className="font-display text-xl leading-tight tracking-wide">{atleta.apelido}</h3>
+            <h3 className="flex flex-wrap items-baseline gap-2 font-display text-xl leading-tight tracking-wide">
+              {atleta.apelido}
+              <span className="rounded bg-black px-1.5 py-0.5 text-xs font-bold text-white">
+                C$ {fmt(atleta.preco_num, 2)}
+              </span>
+            </h3>
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <img src={escudo(clube, "30x30")} alt="" className="h-4 w-4 object-contain" />
               {clube?.abreviacao} · {POS_NOME[atleta.posicao_id]} · {STATUS_NOME[atleta.status_id]}
@@ -249,22 +269,16 @@ export function PlayerModal({ atleta, atletas, clubes, onOpenPlayer, onSell, onC
           {tab === "geral" && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-lg border-2 border-accent bg-panel-2 px-3 py-2">
+                  <p className="text-[11px] text-muted-foreground">Média geral</p>
+                  <p className="font-display text-lg tracking-wide">{fmt(atleta.media_num, 2)}</p>
+                </div>
                 {[
-                  ["Preço", `C$ ${fmt(atleta.preco_num, 2)}`],
-                  ["Média geral", fmt(atleta.media_num, 2)],
                   ["Última pontuação", fmt(atleta.pontos_num, 2)],
                   ["Jogos", String(atleta.jogos_num)],
                   [
                     atleta.posicao_id === 1 ? "Defesas" : "Desarmes",
                     String(atleta.scout?.[atleta.posicao_id === 1 ? "DE" : "DS"] ?? 0),
-                  ],
-                  [
-                    atleta.variacao_num >= 0 ? "Valorização" : "Desvalorização",
-                    fmt(Math.abs(atleta.variacao_num), 2),
-                  ],
-                  [
-                    "Minutagem média (5j)",
-                    ok ? `${ok.minutagem.minutosEstimados}' · ${ok.minutagem.jogosDisputados}/${ok.minutagem.rodadas} jogos` : "-",
                   ],
                 ].map(([k, v]) => (
                   <div key={k} className="rounded-lg border border-border bg-panel-2 px-3 py-2">
@@ -272,48 +286,50 @@ export function PlayerModal({ atleta, atletas, clubes, onOpenPlayer, onSell, onC
                     <p className="font-display text-lg tracking-wide">{v}</p>
                   </div>
                 ))}
+                <div className="rounded-lg border border-border bg-panel-2 px-3 py-2">
+                  <p className="text-[11px] text-muted-foreground">
+                    {atleta.variacao_num >= 0 ? "Última valorização" : "Última desvalorização"}
+                  </p>
+                  <p
+                    className={`font-display text-lg tracking-wide ${atleta.variacao_num >= 0 ? "text-success" : "text-destructive"}`}
+                  >
+                    {atleta.variacao_num >= 0 ? "+" : "-"}
+                    {fmt(Math.abs(atleta.variacao_num), 2)}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-border bg-panel-2 px-3 py-2">
+                  <p className="text-[11px] text-muted-foreground">Minutagem média</p>
+                  <p className="font-display text-lg tracking-wide">
+                    {ok ? `${ok.minutagem.minutosEstimados}'` : "-"}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {ok?.minutagem.ultimoJogo
+                      ? `último jogo: R${ok.minutagem.ultimoJogo.rodada}${ok.minutagem.ultimoJogo.minutos ? ` · ${ok.minutagem.ultimoJogo.minutos}'` : " · minutos não informados"}`
+                      : "sem registro recente"}
+                    {ok && !ok.minutagem.preciso ? " · estimativa imprecisa" : ""}
+                  </p>
+                </div>
               </div>
 
-              <button
-                onClick={() => setShowAll((s) => !s)}
-                className="w-full rounded-lg border border-border py-2 font-display text-sm tracking-wide text-muted-foreground hover:border-accent hover:text-accent"
-              >
-                {showAll ? "Mostrar menos" : "Mostrar tudo"}
-              </button>
-              {showAll && (
-                <dl className="divide-y divide-border overflow-hidden rounded-lg border border-border">
-                  {Object.entries(atleta.scout ?? {}).map(([k, v]) => (
-                    <div key={k} className="flex justify-between px-3 py-1.5">
-                      <dt className={isScoutNegative(k) ? "text-destructive" : "text-success"}>{k}</dt>
-                      <dd>{v}</dd>
-                    </div>
-                  ))}
-                  <div className="flex justify-between px-3 py-1.5">
-                    <dt className="text-muted-foreground">Mínimo para valorizar</dt>
-                    <dd>{fmt(atleta.minimo_para_valorizar ?? null, 2)}</dd>
-                  </div>
-                </dl>
-              )}
-              {showAll && ok && (
-                <section>
-                  <h4 className="mb-2 text-center font-display tracking-wide">
-                    Últimas 5 pontuações {ok.mandoContrario === "casa" ? "em casa" : "fora"} (mando contrário)
-                  </h4>
-                  <div className="space-y-2">
-                    {ok.historicoContrario.map((g) => (
-                      <div key={g.rodada} className="rounded-lg border border-border bg-panel-2 px-3 py-2">
-                        <p className="mb-1 text-center text-xs text-muted-foreground">
-                          Rodada {g.rodada} · {fmt(g.pontuacao, 2)} pts
-                        </p>
-                        <ScoutLine scout={g.scout} />
-                      </div>
-                    ))}
-                    {!ok.historicoContrario.length && (
-                      <p className="text-center text-xs text-muted-foreground">Sem jogos nesse mando.</p>
-                    )}
-                  </div>
-                </section>
-              )}
+              <div className="rounded-lg border border-border bg-panel-2 px-3 py-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] text-muted-foreground">Mínimo para valorizar (MNO)</p>
+                  <p className="font-display text-lg tracking-wide text-accent">{mno.mno_estimado.toFixed(2)} pts</p>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Dificuldade <b className="text-foreground">{mno.dificuldade}</b> ·{" "}
+                  <b
+                    className={
+                      mno.recomendacao_patrimonio.startsWith("Ganho") ? "text-success" : "text-destructive"
+                    }
+                  >
+                    {mno.recomendacao_patrimonio}
+                  </b>
+                </p>
+                <p className="text-[10px] text-muted-foreground">{mno.fator_chave}</p>
+              </div>
+
+              {ok && <ScoreChart dados={ok.ultimasRodadas} />}
 
               {ok && (
                 <section>
@@ -337,6 +353,35 @@ export function PlayerModal({ atleta, atletas, clubes, onOpenPlayer, onSell, onC
                   </div>
                 </section>
               )}
+
+              <button
+                onClick={() => setShowAll((s) => !s)}
+                className="w-full rounded-lg border border-border py-2 font-display text-sm tracking-wide text-muted-foreground hover:border-accent hover:text-accent"
+              >
+                {showAll ? "Mostrar menos" : "Mostrar tudo"}
+              </button>
+
+              {showAll && ok && (
+                <section>
+                  <h4 className="mb-2 text-center font-display tracking-wide">
+                    Últimas 5 pontuações {ok.mandoContrario === "casa" ? "em casa" : "fora"} (mando contrário)
+                  </h4>
+                  <div className="space-y-2">
+                    {ok.historicoContrario.map((g) => (
+                      <div key={g.rodada} className="rounded-lg border border-border bg-panel-2 px-3 py-2">
+                        <p className="mb-1 text-center text-xs text-muted-foreground">
+                          Rodada {g.rodada} · {fmt(g.pontuacao, 2)} pts
+                        </p>
+                        <ScoutLine scout={g.scout} />
+                      </div>
+                    ))}
+                    {!ok.historicoContrario.length && (
+                      <p className="text-center text-xs text-muted-foreground">Sem jogos nesse mando.</p>
+                    )}
+                  </div>
+                </section>
+              )}
+
 
               {ok && (
                 <section>
@@ -392,8 +437,15 @@ export function PlayerModal({ atleta, atletas, clubes, onOpenPlayer, onSell, onC
               </p>
 
               <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-lg border-2 border-accent bg-panel-2 px-3 py-2 text-center">
+                  <p className="text-[11px] text-muted-foreground">Média cedida (top 5)</p>
+                  <p className="font-display text-lg tracking-wide text-accent">{fmt(ok.cedimentos.mediaCedida, 2)}</p>
+                </div>
+                <div className="rounded-lg border-2 border-accent bg-panel-2 px-3 py-2 text-center">
+                  <p className="text-[11px] text-muted-foreground">Média do jogador no mando</p>
+                  <p className="font-display text-lg tracking-wide text-accent">{fmt(ok.mediaMando, 2)}</p>
+                </div>
                 {[
-                  ["Média cedida", fmt(ok.cedimentos.mediaCedida, 2)],
                   ["Média básica cedida", fmt(ok.cedimentos.mediaBasicaCedida, 2)],
                   ["Assistências cedidas", String(ok.cedimentos.assistenciasCedidas)],
                   ["Gols cedidos", String(ok.cedimentos.golsCedidos)],
@@ -409,7 +461,6 @@ export function PlayerModal({ atleta, atletas, clubes, onOpenPlayer, onSell, onC
                         ],
                       ] as Array<[string, string]>)
                     : []),
-                  ["Média do jogador no mando", fmt(ok.mediaMando, 2)],
                   ["Pontuação esperada", fmt(ok.pontuacaoEsperada, 2)],
                 ].map(([k, v]) => (
                   <div key={k} className="rounded-lg border border-border bg-panel-2 px-3 py-2 text-center">

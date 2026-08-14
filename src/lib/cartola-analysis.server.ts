@@ -101,6 +101,8 @@ export async function playerMandoHistory(
 
 export type Cedimentos = {
   jogos: HistoryGame[];
+  top5: HistoryGame[];
+  recorrencia: number;
   mediaCedida: number;
   mediaBasicaCedida: number;
   assistenciasCedidas: number;
@@ -143,15 +145,20 @@ export async function cedimentos(
   }
   const weights = posicaoId === 1 ? BASIC_GK : BASIC_LINE;
   const count = jogos.length || 1;
-  const soma = jogos.reduce((s, g) => s + g.pontuacao, 0);
+  // Média cedida = média dos 5 maiores pontuadores da posição contra esse adversário no mando
+  const top5 = [...jogos].sort((a, b) => b.pontuacao - a.pontuacao).slice(0, 5);
+  const somaTop = top5.reduce((s, g) => s + g.pontuacao, 0);
   const basica = jogos.reduce((s, g) => {
     let v = 0;
     for (const [k, w] of Object.entries(weights)) v += (g.scout[k] ?? 0) * w;
     return s + v;
   }, 0);
+  const acima5 = jogos.filter((g) => g.pontuacao > 5).length;
   return {
     jogos: jogos.sort((a, b) => b.rodada - a.rodada),
-    mediaCedida: soma / count,
+    top5,
+    recorrencia: jogos.length ? (acima5 / jogos.length) * 100 : 0,
+    mediaCedida: somaTop / 5,
     mediaBasicaCedida: basica / count,
     assistenciasCedidas: jogos.reduce((s, g) => s + (g.scout['A'] ?? 0), 0),
     golsCedidos: jogos.reduce((s, g) => s + (g.scout['G'] ?? 0), 0),
@@ -266,10 +273,35 @@ export async function minutagem(atletaId: number, rodadaAtual: number, n = 5) {
     detalhe.push({ rodada: r, jogou: !!a, pontuacao: a?.pontuacao ?? 0 });
   }
   const base = rodadas || 1;
+  const ultimo = detalhe.find((d) => d.jogou) ?? null;
   return {
     rodadas,
     jogosDisputados,
     minutosEstimados: Math.round((jogosDisputados / base) * 90),
+    /** A API do Cartola não expõe minutos jogados — o valor é uma estimativa. */
+    preciso: false,
+    ultimoJogo: ultimo ? { rodada: ultimo.rodada, minutos: null as number | null } : null,
     detalhe,
   };
+}
+
+/** Pontuações das últimas N rodadas (null quando o atleta não pontuou/não jogou). */
+export async function playerLastRounds(
+  atletaId: number,
+  rodadaAtual: number,
+  n = 10,
+): Promise<Array<{ rodada: number; pontuacao: number | null }>> {
+  const out: Array<{ rodada: number; pontuacao: number | null }> = [];
+  for (let r = rodadaAtual - 1; r >= 1 && out.length < n; r--) {
+    const pts = await getPontuados(r).catch(() => null);
+    if (!pts) continue;
+    const a = pts.atletas?.[String(atletaId)];
+    out.push({ rodada: r, pontuacao: a ? (a.pontuacao ?? 0) : null });
+  }
+  return out.reverse();
+}
+
+/** Parciais ao vivo (só retorna dados com o mercado fechado / rodada em andamento). */
+export async function getParciais() {
+  return cartolaGet<PontuadosResp>("/atletas/pontuados", 45_000);
 }

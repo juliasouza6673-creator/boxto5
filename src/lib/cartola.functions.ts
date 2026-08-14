@@ -10,9 +10,16 @@ export type BestPick = {
   preco: number;
   jogos: number;
   media: number;
+  mediaMando: number;
   mando: "casa" | "fora";
   adversario: number;
   mediaCedida: number;
+  recorrencia: number;
+  desarmesCedidos: number;
+  defesasCedidas: number;
+  golsCedidos: number;
+  minutos: number;
+  tendencia: "subindo" | "estavel" | "caindo";
   score: number;
 };
 
@@ -71,13 +78,14 @@ export const getPlayerAnalysis = createServerFn({ method: "POST" })
       const info = om[data.clubeId];
       if (!info) return { ok: true as const, semJogo: true, rodada };
       const contrario = info.mando === "casa" ? ("fora" as const) : ("casa" as const);
-      const [histRaw, histContrario, ced, minut, formTime, formAdv] = await Promise.all([
+      const [histRaw, histContrario, ced, minut, formTime, formAdv, ultimasRodadas] = await Promise.all([
         m.playerMandoHistory(data.atletaId, info.mando, rodada, 5),
         m.playerMandoHistory(data.atletaId, contrario, rodada, 5),
         m.cedimentos(info.adversario, data.posicaoId, info.mando, rodada, 5),
         m.minutagem(data.atletaId, rodada, 5),
         m.teamForm(data.clubeId, info.mando, rodada, 5),
         m.teamForm(info.adversario, contrario, rodada, 5),
+        m.playerLastRounds(data.atletaId, rodada, 10),
       ]);
       // Sem jogos no mando previsto: usa as últimas 5 em casa como referência
       const fallbackCasa =
@@ -95,6 +103,7 @@ export const getPlayerAnalysis = createServerFn({ method: "POST" })
         adversario: info.adversario,
         historico: hist,
         historicoContrario: histContrario,
+        ultimasRodadas,
         usouFallbackCasa: !histRaw.length && fallbackCasa.length > 0,
         mediaMando,
         cedimentos: ced,
@@ -121,6 +130,7 @@ export const getExpectedPoints = createServerFn({ method: "POST" })
       const om = await m.opponentMap(rodada);
       const cedCache = new Map<string, Awaited<ReturnType<typeof m.cedimentos>>>();
       const out: Record<string, number> = {};
+      const cedidas: Record<string, number> = {};
       for (const j of data.jogadores.slice(0, 20)) {
         const info = om[j.clubeId];
         if (!info) continue;
@@ -134,8 +144,9 @@ export const getExpectedPoints = createServerFn({ method: "POST" })
         }
         const mediaMando = hist.length ? hist.reduce((s, g) => s + g.pontuacao, 0) / 5 : 0;
         out[String(j.atletaId)] = mediaMando + ced.mediaCedida;
+        cedidas[String(j.atletaId)] = ced.mediaCedida;
       }
-      return { ok: true as const, esperado: out };
+      return { ok: true as const, esperado: out, cedidas };
     } catch (err) {
       return { ok: false as const, error: (err as Error).message };
     }
@@ -160,7 +171,7 @@ export const getBestOfRound = createServerFn({ method: "GET" }).handler(async ()
       const pool = candidatos
         .filter((a) => a.posicao_id === posId)
         .sort((a, b) => (b.media_num ?? 0) - (a.media_num ?? 0))
-        .slice(0, 12);
+        .slice(0, 16);
       const scored: BestPick[] = [];
       for (const a of pool) {
         const info = om[a.clube_id]!;
@@ -173,6 +184,25 @@ export const getBestOfRound = createServerFn({ method: "GET" }).handler(async ()
         const jogos = a.jogos_num ?? 0;
         const peso = Math.min(1, jogos / 8);
         const media = a.media_num ?? 0;
+
+        const [hist, minut] = await Promise.all([
+          posId === 6 ? Promise.resolve([]) : m.playerMandoHistory(a.atleta_id, info.mando, rodada, 5),
+          posId === 6 ? Promise.resolve(null) : m.minutagem(a.atleta_id, rodada, 5),
+        ]);
+        const mediaMando = hist.length ? hist.reduce((s, g) => s + g.pontuacao, 0) / hist.length : media;
+        const minutos = minut?.minutosEstimados ?? 90;
+        // Tendência via média móvel de 3 vs anteriores
+        const ord = [...hist].sort((x, y) => x.rodada - y.rodada).map((g) => g.pontuacao);
+        const mm3 = ord.slice(-3);
+        const antes = ord.slice(0, -3);
+        const avg = (arr: number[]) => (arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : 0);
+        const delta = mm3.length ? avg(mm3) - (antes.length ? avg(antes) : avg(mm3)) : 0;
+        const tendencia = delta > 0.8 ? ("subindo" as const) : delta < -0.8 ? ("caindo" as const) : ("estavel" as const);
+
+        const fatorMin = 0.6 + 0.4 * Math.min(1, minutos / 90);
+        const bonusTend = tendencia === "subindo" ? 1.08 : tendencia === "caindo" ? 0.92 : 1;
+        const bonusRec = 1 + (ced.recorrencia / 100) * 0.25;
+
         scored.push({
           atleta_id: a.atleta_id,
           apelido: a.apelido,
@@ -182,13 +212,20 @@ export const getBestOfRound = createServerFn({ method: "GET" }).handler(async ()
           preco: a.preco_num,
           jogos,
           media,
+          mediaMando,
           mando: info.mando,
           adversario: info.adversario,
           mediaCedida: ced.mediaCedida,
-          score: (media + ced.mediaCedida) * (0.6 + 0.4 * peso),
+          recorrencia: ced.recorrencia,
+          desarmesCedidos: ced.desarmesCedidos,
+          defesasCedidas: ced.defesasCedidas,
+          golsCedidos: ced.golsCedidos,
+          minutos,
+          tendencia,
+          score: (mediaMando * 0.6 + media * 0.4 + ced.mediaCedida) * (0.6 + 0.4 * peso) * fatorMin * bonusTend * bonusRec,
         });
       }
-      byPos[String(posId)] = scored.sort((x, y) => y.score - x.score).slice(0, 5);
+      byPos[String(posId)] = scored.sort((x, y) => y.score - x.score).slice(0, 10);
     }
 
     return { ok: true as const, rodada, byPos };
@@ -204,34 +241,56 @@ export const getBestSG = createServerFn({ method: "GET" }).handler(async () => {
     const status = await m.getStatus();
     const rodada = status.rodada_atual ?? 1;
     const partidas = await m.getPartidas(rodada);
-    const out = [] as Array<{
+    type Item = {
       clube_id: number;
       adversario: number;
       mando: "casa" | "fora";
+      clube_casa_id: number;
+      clube_visitante_id: number;
       defesa: Awaited<ReturnType<typeof m.teamForm>>;
       ataqueAdversario: Awaited<ReturnType<typeof m.teamForm>>;
-      score: number;
-    }>;
+      chance: number;
+    };
+    const out: Item[] = [];
     for (const p of partidas.partidas ?? []) {
+      const opcoes: Item[] = [];
       for (const lado of ["casa", "fora"] as const) {
         const clube = lado === "casa" ? p.clube_casa_id : p.clube_visitante_id;
         const adv = lado === "casa" ? p.clube_visitante_id : p.clube_casa_id;
         const advMando = lado === "casa" ? ("fora" as const) : ("casa" as const);
+        // amostra maior (até 8 jogos) sempre respeitando o mando
         const [defesa, ataqueAdversario] = await Promise.all([
-          m.teamForm(clube, lado, rodada, 5),
-          m.teamForm(adv, advMando, rodada, 5),
+          m.teamForm(clube, lado, rodada, 8),
+          m.teamForm(adv, advMando, rodada, 8),
         ]);
-        const amostra = Math.max(1, defesa.jogos.length);
-        const amostraAdv = Math.max(1, ataqueAdversario.jogos.length);
-        const score =
-          (defesa.sgMantidos / amostra) * 60 +
-          (ataqueAdversario.sgCedidos / amostraAdv) * 30 +
-          Math.max(0, 10 - (defesa.golsSofridos / amostra) * 5) +
-          Math.max(0, 10 - (ataqueAdversario.golsFeitos / amostraAdv) * 5);
-        out.push({ clube_id: clube, adversario: adv, mando: lado, defesa, ataqueAdversario, score });
+        const nD = Math.max(1, defesa.jogos.length);
+        const nA = Math.max(1, ataqueAdversario.jogos.length);
+        const golsSofridosPorJogo = defesa.golsSofridos / nD;
+        const golsFeitosAdvPorJogo = ataqueAdversario.golsFeitos / nA;
+        // expectativa de gols do adversário nesse confronto
+        let lambda = Math.sqrt(Math.max(0.15, golsSofridosPorJogo) * Math.max(0.15, golsFeitosAdvPorJogo));
+        lambda *= lado === "casa" ? 0.9 : 1.12; // peso de mando
+        const poisson = Math.exp(-lambda);
+        const empirico = (defesa.sgMantidos / nD) * 0.5 + (ataqueAdversario.sgCedidos / nA) * 0.5;
+        const confianca = Math.min(1, (defesa.jogos.length + ataqueAdversario.jogos.length) / 10);
+        const chance = Math.round(
+          Math.max(4, Math.min(88, (poisson * 0.6 + empirico * 0.4) * 100 * (0.75 + 0.25 * confianca))),
+        );
+        opcoes.push({
+          clube_id: clube,
+          adversario: adv,
+          mando: lado,
+          clube_casa_id: p.clube_casa_id,
+          clube_visitante_id: p.clube_visitante_id,
+          defesa,
+          ataqueAdversario,
+          chance,
+        });
       }
+      const melhor = opcoes.sort((a, b) => b.chance - a.chance)[0];
+      if (melhor) out.push(melhor);
     }
-    return { ok: true as const, rodada, ranking: out.sort((a, b) => b.score - a.score) };
+    return { ok: true as const, rodada, ranking: out.sort((a, b) => b.chance - a.chance) };
   } catch (err) {
     return { ok: false as const, error: (err as Error).message };
   }
@@ -277,3 +336,16 @@ export const getMatchInsights = createServerFn({ method: "POST" })
       return { ok: false as const, error: (err as Error).message };
     }
   });
+
+/** Parciais ao vivo da rodada (mercado fechado). */
+export const getParciais = createServerFn({ method: "GET" }).handler(async () => {
+  const m = await import("./cartola-analysis.server");
+  try {
+    const p = await m.getParciais();
+    const pontos: Record<string, number> = {};
+    for (const [id, a] of Object.entries(p.atletas ?? {})) pontos[id] = a.pontuacao ?? 0;
+    return { ok: true as const, rodada: p.rodada, pontos, atualizadoEm: Date.now() };
+  } catch (err) {
+    return { ok: false as const, error: (err as Error).message, pontos: {} as Record<string, number> };
+  }
+});
