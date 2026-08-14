@@ -187,6 +187,19 @@ export function PlayerModal({ atleta, atletas, clubes, onOpenPlayer, onSell, onC
 
   const recomendado = ok ? ok.cedimentos.mediaCedida >= Math.max(2, ok.mediaMando * 0.8) : false;
 
+  const mno = useMemo(() => {
+    const rodada = analysis?.ok && "rodada" in analysis ? (analysis.rodada ?? 1) : 1;
+    const ultimoReal = ok?.ultimasRodadas.find((r) => r.pontuacao !== null)?.pontuacao ?? atleta.pontos_num;
+    return computeMNO({
+      rodada,
+      preco_atual: atleta.preco_num,
+      pontos_ultima: atleta.pontos_num,
+      jogou_ultima: atleta.pontos_num !== 0,
+      pontos_ultimo_jogo_real: ultimoReal,
+      jogos_disputados: atleta.jogos_num,
+    });
+  }, [analysis, ok, atleta]);
+
   return (
     <div
       className="fixed inset-0 z-[70] flex items-center justify-center bg-background/85 p-3 backdrop-blur-sm"
