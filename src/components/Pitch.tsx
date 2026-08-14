@@ -133,46 +133,14 @@ export function Pitch({
 
   return (
     <section className="panel p-3">
-      <div className="mb-2 flex flex-wrap items-center gap-2">
+      <div className="mb-2 flex items-center gap-2">
         <input
           value={board.nome}
           onChange={(e) => onRename(e.target.value)}
           className="min-w-0 flex-1 bg-transparent font-display text-lg tracking-wide outline-none"
         />
-        <button
-          onClick={onOpenAdvanced}
-          className="rounded-lg border border-accent px-2 py-1 text-xs font-semibold text-accent"
-        >
-          Ferramentas avançadas
-        </button>
-        <button
-          onClick={() => onChange((b) => ({ ...b, locked: !b.locked }))}
-          className="rounded-lg border border-border px-2 py-1 text-xs text-muted-foreground"
-        >
-          {board.locked ? "🔒 Travado" : "🔓 Livre"}
-        </button>
-        <button
-          onClick={() => onChange((b) => ({ ...b, slots: buildFormation(b.formacao).map((s, i) => ({ ...s, atletaId: b.slots[i]?.atletaId ?? null })) }))}
-          className="rounded-lg border border-border px-2 py-1 text-xs text-muted-foreground"
-        >
-          Resetar posições
-        </button>
-        <button
-          onClick={() =>
-            onChange((b) => ({
-              ...b,
-              slots: b.slots.map((s) => ({ ...s, atletaId: null })),
-              bench: b.bench.map((s) => ({ ...s, atletaId: null })),
-            }))
-          }
-          className="rounded-lg border border-border px-2 py-1 text-xs text-muted-foreground"
-        >
-          Vender time
-        </button>
-        <button onClick={onDelete} className="rounded-lg border border-border px-2 py-1 text-xs text-destructive">
-          Excluir
-        </button>
       </div>
+
 
       <div>
         <div
