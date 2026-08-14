@@ -19,33 +19,39 @@ export function BestSGModal({ clubes, onClose }: { clubes: Record<string, Clube>
         onClick={(e) => e.stopPropagation()}
       >
         <header className="flex items-center justify-between border-b border-border p-4">
-          <h2 className="font-display text-lg tracking-wide sm:text-xl">Melhores SGs da rodada</h2>
+          <div>
+            <h2 className="font-display text-lg tracking-wide sm:text-xl">Melhores SGs da rodada</h2>
+            <p className="text-[11px] text-muted-foreground">Chance estimada de não sofrer gol, respeitando o mando.</p>
+          </div>
           <button onClick={onClose} className="text-muted-foreground">
             ✕
           </button>
         </header>
         <div className="space-y-2 overflow-y-auto p-3 sm:p-4">
-          {isLoading && <p className="py-8 text-center text-muted-foreground">Analisando os últimos 5 jogos por mando…</p>}
+          {isLoading && <p className="py-8 text-center text-muted-foreground">Analisando retrospecto por mando…</p>}
           {data?.ok &&
             data.ranking.map((r, i) => {
               const c = clubes[String(r.clube_id)];
               const adv = clubes[String(r.adversario)];
+              const casa = clubes[String(r.clube_casa_id)];
+              const visitante = clubes[String(r.clube_visitante_id)];
               const d = r.defesa;
               const a = r.ataqueAdversario;
               return (
                 <div key={`${r.clube_id}-${r.mando}`} className="rounded-lg border border-border bg-panel-2 p-3">
                   <div className="flex items-center gap-2">
                     <span className="font-display text-sm text-accent">{i + 1}º</span>
-                    <img src={escudo(c, "45x45")} alt="" className="h-7 w-7 object-contain" />
-                    <span className="text-sm font-semibold">{c?.abreviacao}</span>
+                    <img src={escudo(casa, "45x45")} alt="" className="h-7 w-7 object-contain" />
                     <span className="text-xs text-muted-foreground">x</span>
-                    <img src={escudo(adv, "45x45")} alt="" className="h-6 w-6 object-contain" />
-                    <span className="text-xs text-muted-foreground">{adv?.abreviacao}</span>
-                    <span className="text-[11px] text-muted-foreground">
-                      · {r.mando === "casa" ? "em casa" : "fora"}
+                    <img src={escudo(visitante, "45x45")} alt="" className="h-7 w-7 object-contain" />
+                    <span className="text-sm font-semibold">
+                      {c?.abreviacao}
+                      <span className="ml-1 text-[11px] font-normal text-muted-foreground">
+                        {r.mando === "casa" ? "em casa" : "fora"}
+                      </span>
                     </span>
                     <span className="ml-auto rounded-md border border-success/50 px-2 py-0.5 font-display text-[11px] text-success">
-                      SG {Math.round(r.score)}
+                      Chance de manter {r.chance}%
                     </span>
                   </div>
                   <p className="mt-2 text-[11px] text-muted-foreground">
@@ -59,16 +65,25 @@ export function BestSGModal({ clubes, onClose }: { clubes: Record<string, Clube>
                     {r.mando === "casa" ? "fora" : "em casa"}: marcou {a.golsFeitos} gols · cedeu SG em{" "}
                     <b className="text-success">{a.sgCedidos}</b> jogos
                   </p>
-                  <p className="mt-1 flex flex-wrap gap-1 text-[10px]">
-                    {d.jogos.map((g) => (
-                      <span
-                        key={g.rodada}
-                        className={`rounded border px-1 ${g.resultado === "V" ? "border-success text-success" : g.resultado === "E" ? "border-border text-muted-foreground" : "border-destructive text-destructive"}`}
-                      >
-                        R{g.rodada} {g.golsPro}x{g.golsContra}
-                      </span>
-                    ))}
-                  </p>
+                  <div className="mt-1 flex flex-wrap gap-1 text-[10px]">
+                    {d.jogos.map((g) => {
+                      const mandante = r.mando === "casa" ? c : clubes[String(g.adversario)];
+                      const vis = r.mando === "casa" ? clubes[String(g.adversario)] : c;
+                      const sg = g.golsContra === 0;
+                      return (
+                        <span
+                          key={g.rodada}
+                          className={`flex items-center gap-1 rounded border px-1 py-0.5 ${sg ? "border-success text-success" : "border-border text-muted-foreground"}`}
+                        >
+                          R{g.rodada}
+                          <img src={escudo(mandante, "30x30")} alt="" className="h-3.5 w-3.5 object-contain" />
+                          {r.mando === "casa" ? g.golsPro : g.golsContra}x
+                          {r.mando === "casa" ? g.golsContra : g.golsPro}
+                          <img src={escudo(vis, "30x30")} alt="" className="h-3.5 w-3.5 object-contain" />
+                        </span>
+                      );
+                    })}
+                  </div>
                 </div>
               );
             })}
