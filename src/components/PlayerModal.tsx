@@ -207,7 +207,12 @@ export function PlayerModal({ atleta, atletas, clubes, onOpenPlayer, onSell, onC
             </span>
           )}
           <div className="min-w-0 flex-1">
-            <h3 className="font-display text-xl leading-tight tracking-wide">{atleta.apelido}</h3>
+            <h3 className="flex flex-wrap items-baseline gap-2 font-display text-xl leading-tight tracking-wide">
+              {atleta.apelido}
+              <span className="rounded bg-black px-1.5 py-0.5 text-xs font-bold text-white">
+                C$ {fmt(atleta.preco_num, 2)}
+              </span>
+            </h3>
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <img src={escudo(clube, "30x30")} alt="" className="h-4 w-4 object-contain" />
               {clube?.abreviacao} · {POS_NOME[atleta.posicao_id]} · {STATUS_NOME[atleta.status_id]}
