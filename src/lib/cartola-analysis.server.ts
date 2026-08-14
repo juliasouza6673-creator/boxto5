@@ -273,10 +273,35 @@ export async function minutagem(atletaId: number, rodadaAtual: number, n = 5) {
     detalhe.push({ rodada: r, jogou: !!a, pontuacao: a?.pontuacao ?? 0 });
   }
   const base = rodadas || 1;
+  const ultimo = detalhe.find((d) => d.jogou) ?? null;
   return {
     rodadas,
     jogosDisputados,
     minutosEstimados: Math.round((jogosDisputados / base) * 90),
+    /** A API do Cartola não expõe minutos jogados — o valor é uma estimativa. */
+    preciso: false,
+    ultimoJogo: ultimo ? { rodada: ultimo.rodada, minutos: null as number | null } : null,
     detalhe,
   };
+}
+
+/** Pontuações das últimas N rodadas (null quando o atleta não pontuou/não jogou). */
+export async function playerLastRounds(
+  atletaId: number,
+  rodadaAtual: number,
+  n = 10,
+): Promise<Array<{ rodada: number; pontuacao: number | null }>> {
+  const out: Array<{ rodada: number; pontuacao: number | null }> = [];
+  for (let r = rodadaAtual - 1; r >= 1 && out.length < n; r--) {
+    const pts = await getPontuados(r).catch(() => null);
+    if (!pts) continue;
+    const a = pts.atletas?.[String(atletaId)];
+    out.push({ rodada: r, pontuacao: a ? (a.pontuacao ?? 0) : null });
+  }
+  return out.reverse();
+}
+
+/** Parciais ao vivo (só retorna dados com o mercado fechado / rodada em andamento). */
+export async function getParciais() {
+  return cartolaGet<PontuadosResp>("/atletas/pontuados", 45_000);
 }
