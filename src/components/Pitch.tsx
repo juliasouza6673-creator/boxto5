@@ -385,7 +385,15 @@ export function Pitch({
                 <span className="mt-0.5 max-w-16 truncate rounded bg-background/60 px-1 text-[9px] leading-tight">
                   {a ? a.apelido : POS_ABREV[slot.pos]}
                 </span>
-                {a && <span className="text-[8px] text-accent">C$ {fmt(a.preco_num, 1)}</span>}
+                {a && (
+                  <span className="rounded bg-black px-1 text-[9px] font-bold text-white">
+                    {!mercadoAberto
+                      ? `${fmt(parciais[String(a.atleta_id)] ?? 0, 1)} pts`
+                      : mcOn
+                        ? `MC ${fmt(cedidas[String(a.atleta_id)] ?? 0, 1)}`
+                        : `C$ ${fmt(a.preco_num, 1)}`}
+                  </span>
+                )}
               </div>
             );
           })}
