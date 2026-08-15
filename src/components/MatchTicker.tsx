@@ -3,14 +3,17 @@ import type { Atleta, Clube, Partida } from "@/lib/cartola-types";
 import { POS_NOME } from "@/lib/cartola-types";
 import { escudo, fmt } from "@/lib/cartola-ui";
 
+type NewsItem = { titulo: string; link: string; fonte: string };
+
 type Props = {
   partidas: Partida[];
   clubes: Record<string, Clube>;
   atletas: Atleta[];
+  noticias?: NewsItem[];
   onSelectMatch: (p: Partida) => void;
 };
 
-export function MatchTicker({ partidas, clubes, atletas, onSelectMatch }: Props) {
+export function MatchTicker({ partidas, clubes, atletas, noticias = [], onSelectMatch }: Props) {
   const items = useMemo(() => [...partidas, ...partidas], [partidas]);
 
   const dicas = useMemo(() => {
@@ -53,6 +56,18 @@ export function MatchTicker({ partidas, clubes, atletas, onSelectMatch }: Props)
     return out.sort(() => Math.random() - 0.5);
   }, [atletas, clubes, partidas]);
 
+  const feed = useMemo(() => {
+    const news = noticias.map((n) => ({ texto: `📰 ${n.titulo}`, link: n.link, fonte: n.fonte }));
+    const tips = dicas.map((d) => ({ texto: d, link: "", fonte: "Box to 5" }));
+    const out: Array<{ texto: string; link: string; fonte: string }> = [];
+    const max = Math.max(news.length, tips.length);
+    for (let i = 0; i < max; i++) {
+      if (tips[i]) out.push(tips[i]!);
+      if (news[i]) out.push(news[i]!);
+    }
+    return out;
+  }, [dicas, noticias]);
+
   const scroller = useRef<HTMLDivElement>(null);
   const [paused, setPaused] = useState(false);
   useEffect(() => {
@@ -68,10 +83,10 @@ export function MatchTicker({ partidas, clubes, atletas, onSelectMatch }: Props)
 
   const [tip, setTip] = useState(0);
   useEffect(() => {
-    if (!dicas.length) return;
-    const t = setInterval(() => setTip((i) => (i + 1) % dicas.length), 6000);
+    if (!feed.length) return;
+    const t = setInterval(() => setTip((i) => (i + 1) % feed.length), 7000);
     return () => clearInterval(t);
-  }, [dicas.length]);
+  }, [feed.length]);
 
   if (!partidas.length) return null;
 
@@ -113,11 +128,29 @@ export function MatchTicker({ partidas, clubes, atletas, onSelectMatch }: Props)
 
         </div>
       </div>
-      {dicas.length > 0 && (
-        <div className="min-h-9 rounded-xl border border-border bg-panel px-3 py-2">
-          <p key={tip} className="animate-tip text-xs leading-relaxed text-muted-foreground">
-            {dicas[tip % dicas.length]}
+      {feed.length > 0 && (
+        <div className="flex h-20 flex-col justify-between rounded-xl border border-border bg-panel px-3 py-2">
+          <p key={tip} className="animate-tip line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+            {feed[tip % feed.length]!.texto}
           </p>
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+            <span className="uppercase tracking-wide">{feed[tip % feed.length]!.fonte}</span>
+            <span className="flex items-center gap-2">
+              {feed[tip % feed.length]!.link && (
+                <a
+                  href={feed[tip % feed.length]!.link}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-semibold text-accent"
+                >
+                  ler notícia
+                </a>
+              )}
+              <button onClick={() => setTip((i) => (i + 1) % feed.length)} className="hover:text-accent">
+                próxima ›
+              </button>
+            </span>
+          </div>
         </div>
       )}
     </div>
