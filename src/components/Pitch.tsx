@@ -27,6 +27,31 @@ type Props = {
   onDelete: () => void;
 };
 
+
+const IconWrench = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+    <path d="M14.7 6.3a4 4 0 0 0 5 5l-8.4 8.4a2.1 2.1 0 0 1-3-3L16.7 8.3" />
+    <path d="M19.7 11.3 21 6.6 18.4 4 13.7 5.3" />
+  </svg>
+);
+const IconReset = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+    <path d="M3 12a9 9 0 1 0 3-6.7" />
+    <path d="M3 4v5h5" />
+  </svg>
+);
+const IconPencil = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+    <path d="M4 20h4L20 8l-4-4L4 16v4Z" />
+    <path d="m14 6 4 4" />
+  </svg>
+);
+const IconTrash = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+    <path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13" />
+  </svg>
+);
+
 export function Pitch({
   board,
   esquemas,
@@ -139,43 +164,32 @@ export function Pitch({
           onChange={(e) => onRename(e.target.value)}
           className="min-w-0 flex-1 bg-transparent font-display text-lg tracking-wide outline-none"
         />
+        <button
+          onClick={onDelete}
+          title="Excluir campinho inteiro"
+          aria-label="Excluir campinho inteiro"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-destructive/60 text-destructive hover:bg-destructive/10"
+        >
+          <IconTrash />
+        </button>
       </div>
 
 
       <div>
-        <div
-          ref={ref}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={endPointer}
-          onPointerLeave={endPointer}
-          className="relative min-w-0 flex-1 touch-none overflow-hidden rounded-xl border border-border"
-          style={{
-            aspectRatio: "3 / 3.7",
-            background:
-              "repeating-linear-gradient(90deg, oklch(1 0 0 / 4%) 0 8%, transparent 8% 16%), linear-gradient(180deg, var(--pitch-b), var(--pitch-a) 65%, oklch(0.3 0.07 152))",
-          }}
-        >
-          <div className="pointer-events-none absolute inset-2 rounded-sm border border-primary/25" />
-          <div className="pointer-events-none absolute left-1/2 top-1/2 h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary/25" />
-          <div className="pointer-events-none absolute inset-x-2 top-1/2 border-t border-primary/20" />
-          <div className="pointer-events-none absolute bottom-2 left-1/2 h-[16%] w-[55%] -translate-x-1/2 border border-b-0 border-primary/25" />
-          <div className="pointer-events-none absolute top-2 left-1/2 h-[16%] w-[55%] -translate-x-1/2 border border-t-0 border-primary/25" />
-
           <div
             onPointerDown={(e) => e.stopPropagation()}
-            className="absolute left-1/2 top-2 z-30 flex -translate-x-1/2 items-center gap-1 rounded-lg border border-primary/30 bg-background/70 px-1.5 py-1 backdrop-blur"
+            className="mx-auto mb-2 flex w-fit flex-wrap items-center justify-center gap-1 rounded-lg border border-primary/30 bg-panel-2 px-1.5 py-1"
           >
             {[
-              { t: "Ferramentas avançadas", i: "🧪", f: onOpenAdvanced },
+              { t: "Ferramentas avançadas", i: <IconWrench />, f: onOpenAdvanced },
               {
                 t: board.locked ? "Travado (clique para liberar)" : "Livre (clique para travar)",
-                i: board.locked ? "🔒" : "🔓",
+                i: <span className="text-[12px]">{board.locked ? "🔒" : "🔓"}</span>,
                 f: () => onChange((b) => ({ ...b, locked: !b.locked })),
               },
               {
                 t: "Resetar posições",
-                i: "🎯",
+                i: <IconReset />,
                 f: () =>
                   onChange((b) => ({
                     ...b,
@@ -184,7 +198,7 @@ export function Pitch({
               },
               {
                 t: "Vender time",
-                i: "💸",
+                i: <span className="text-[12px]">💸</span>,
                 f: () =>
                   onChange((b) => ({
                     ...b,
@@ -192,7 +206,7 @@ export function Pitch({
                     bench: b.bench.map((s) => ({ ...s, atletaId: null })),
                   })),
               },
-              { t: "Excluir escalação", i: "🗑️", f: onDelete },
+              { t: "Desenhar", i: <IconPencil />, f: () => setDrawOpen((o) => !o) },
             ].map((b2) => (
               <button
                 key={b2.t}
@@ -202,7 +216,7 @@ export function Pitch({
                   e.stopPropagation();
                   b2.f();
                 }}
-                className="h-7 w-7 rounded-md border border-border text-[12px] hover:border-accent"
+                className="flex h-7 w-7 items-center justify-center rounded-md border border-border text-[12px] hover:border-accent"
               >
                 {b2.i}
               </button>
@@ -220,21 +234,10 @@ export function Pitch({
             </button>
           </div>
 
-          <div className="absolute left-2 top-10 z-20">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setDrawOpen((o) => !o);
-              }}
-              onPointerDown={(e) => e.stopPropagation()}
-              className="rounded-lg border border-primary/30 bg-background/70 px-2 py-0.5 text-[10px] backdrop-blur"
-            >
-              {drawOpen ? "▲" : "▼"} Desenhar
-            </button>
-            {drawOpen && (
+          {drawOpen && (
               <div
                 onPointerDown={(e) => e.stopPropagation()}
-                className="mt-1 flex max-w-[220px] flex-wrap items-center gap-1 rounded-lg border border-primary/30 bg-background/70 p-1.5 backdrop-blur"
+                className="mx-auto mb-2 flex w-fit max-w-full flex-wrap items-center justify-center gap-1 rounded-lg border border-primary/30 bg-panel-2 p-1.5"
               >
                 {tools.map(([t, icon, label]) => (
                   <button
@@ -275,7 +278,24 @@ export function Pitch({
                 </span>
               </div>
             )}
-          </div>
+        <div
+          ref={ref}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={endPointer}
+          onPointerLeave={endPointer}
+          className="relative min-w-0 flex-1 touch-none overflow-hidden rounded-xl border border-border"
+          style={{
+            aspectRatio: "3 / 3.7",
+            background:
+              "repeating-linear-gradient(90deg, oklch(1 0 0 / 4%) 0 8%, transparent 8% 16%), linear-gradient(180deg, var(--pitch-b), var(--pitch-a) 65%, oklch(0.3 0.07 152))",
+          }}
+        >
+          <div className="pointer-events-none absolute inset-2 rounded-sm border border-primary/25" />
+          <div className="pointer-events-none absolute left-1/2 top-1/2 h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary/25" />
+          <div className="pointer-events-none absolute inset-x-2 top-1/2 border-t border-primary/20" />
+          <div className="pointer-events-none absolute bottom-2 left-1/2 h-[16%] w-[55%] -translate-x-1/2 border border-b-0 border-primary/25" />
+          <div className="pointer-events-none absolute top-2 left-1/2 h-[16%] w-[55%] -translate-x-1/2 border border-t-0 border-primary/25" />
 
           <svg
             viewBox="0 0 100 100"

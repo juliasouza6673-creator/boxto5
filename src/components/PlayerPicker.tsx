@@ -37,9 +37,9 @@ export function PlayerPicker({ posicaoId, atletas, clubes, usados, recomendados 
 
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-background/80 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-2 backdrop-blur-sm sm:p-4" onClick={onClose}>
       <div
-        className="flex max-h-[85vh] w-full max-w-3xl flex-col rounded-t-2xl border border-border bg-panel"
+        className="flex h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-border bg-panel"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
@@ -81,7 +81,7 @@ export function PlayerPicker({ posicaoId, atletas, clubes, usados, recomendados 
           </div>
         </div>
 
-        <div className="flex flex-col gap-1.5 overflow-y-auto p-3">
+        <div className="flex flex-1 flex-col gap-1.5 overflow-y-auto p-3">
           {lista.map((a) => {
             const usado = usados.includes(a.atleta_id);
             const foto = playerPhoto(a);

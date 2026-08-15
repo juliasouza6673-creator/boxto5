@@ -189,7 +189,8 @@ export function PlayerModal({ atleta, atletas, clubes, onOpenPlayer, onSell, onC
 
   const mno = useMemo(() => {
     const rodada = analysis?.ok && "rodada" in analysis ? (analysis.rodada ?? 1) : 1;
-    const ultimoReal = ok?.ultimasRodadas.find((r) => r.pontuacao !== null)?.pontuacao ?? atleta.pontos_num;
+    const jogados = (ok?.ultimasRodadas ?? []).filter((r) => r.pontuacao !== null);
+    const ultimoReal = jogados.length ? (jogados[jogados.length - 1]!.pontuacao as number) : atleta.pontos_num;
     return computeMNO({
       rodada,
       preco_atual: atleta.preco_num,

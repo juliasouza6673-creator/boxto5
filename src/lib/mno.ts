@@ -17,8 +17,8 @@ export type MnoResult = {
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 export function computeMNO(i: MnoInput): MnoResult {
-  const usaReal = !i.jogou_ultima || i.pontos_ultima === 0;
-  const P = usaReal ? (i.pontos_ultimo_jogo_real ?? i.pontos_ultima ?? 0) : i.pontos_ultima;
+  // Sempre usar a pontuação do último jogo em que o atleta REALMENTE entrou em campo.
+  const P = i.jogou_ultima && i.pontos_ultima !== 0 ? i.pontos_ultima : (i.pontos_ultimo_jogo_real ?? i.pontos_ultima ?? 0);
 
   let mno: number;
   let fator: string;
@@ -27,28 +27,22 @@ export function computeMNO(i: MnoInput): MnoResult {
     mno = i.preco_atual * 0.4;
     fator = "Estreante após a primeira rodada: meta reduzida sobre o preço.";
   } else if (i.rodada === 1) {
-    mno = i.preco_atual * 0.45;
+    mno = i.preco_atual * 0.43;
     fator = "Rodada 1: meta calculada apenas sobre o preço inicial.";
   } else if (i.rodada === 2) {
-    mno = i.preco_atual * 0.9 - P;
-    fator = "Rodada 2: preço ainda pesa muito e a pontuação anterior abate a meta.";
-  } else if (i.rodada === 3) {
-    mno = i.preco_atual * 0.85 - P * 0.5;
-    fator = "Rodada 3: transição entre preço e desempenho recente.";
-  } else if (P < 5) {
-    mno = 0.8 * P + 1.58;
-    fator = "Favorecido pela pontuação baixa no último jogo.";
-  } else if (P < 12) {
-    mno = 0.74 * P + 1.62;
-    fator = "Meta equilibrada pela pontuação média do último jogo.";
+    // média ponderada entre preço inicial e a pontuação da rodada 1
+    mno = 0.55 * P + 0.22 * i.preco_atual;
+    fator = "Rodada 2: média ponderada entre o preço e a pontuação da rodada 1.";
   } else {
-    mno = 0.82 * P + 1.85;
-    fator = "Puxado pela mitada do último jogo.";
+    // MPV_t = f(C_{t-1}, S_{t-1}): a inércia do algoritmo exige pontuação próxima da anterior
+    mno = 0.8 * P + 0.085 * i.preco_atual;
+    fator = `Baseado na última partida em que entrou em campo (${P.toFixed(2)} pts) e no preço atual (C$ ${i.preco_atual.toFixed(2)}).`;
   }
 
-  if (usaReal && i.jogos_disputados > 0 && i.rodada >= 4) {
-    fator += " Base: último jogo em que realmente entrou em campo.";
+  if (!i.jogou_ultima && i.jogos_disputados > 0 && i.rodada >= 3) {
+    fator += " Ele não jogou a última rodada — base: o último jogo disputado.";
   }
+
 
   const mno_estimado = round2(mno);
   const dificuldade: MnoResult["dificuldade"] =

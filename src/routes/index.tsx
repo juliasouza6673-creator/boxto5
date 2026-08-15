@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { getBootstrap, getExpectedPoints, getMarketStatus, getMatchInsights, getParciais } from "@/lib/cartola.functions";
+import { getBootstrap, getExpectedPoints, getMarketStatus, getMatchInsights, getNoticias, getParciais } from "@/lib/cartola.functions";
 import type { Atleta, Clube, Partida } from "@/lib/cartola-types";
 import { POS_ABREV, POS_NOME } from "@/lib/cartola-types";
 import { escudo, fmt, isEscalavel, playerPhoto } from "@/lib/cartola-ui";
@@ -91,12 +91,17 @@ function Index() {
   const [hint, setHint] = useState(false);
 
   useEffect(() => {
-    if (!userId) {
-      const t = setInterval(() => setAvisoFechado(false), 90_000);
-      return () => clearInterval(t);
-    }
-    return;
+    if (userId) return;
+    setAvisoFechado(false);
+    const t = setTimeout(() => setAvisoFechado(true), 7000);
+    return () => clearTimeout(t);
   }, [userId]);
+
+  useEffect(() => {
+    if (!hint) return;
+    const t = setTimeout(() => setHint(false), 7000);
+    return () => clearTimeout(t);
+  }, [hint]);
 
   const atletas: Atleta[] = data?.ok ? data.mercado.atletas : [];
   const clubes: Record<string, Clube> = data?.ok ? data.mercado.clubes : {};
@@ -129,6 +134,14 @@ function Index() {
     enabled: titulares.length > 0,
     staleTime: 10 * 60_000,
     queryFn: () => expectedFn({ data: { jogadores: titulares } }),
+  });
+
+  const noticiasFn = useServerFn(getNoticias);
+  const { data: noticiasResp } = useQuery({
+    queryKey: ["noticias"],
+    queryFn: () => noticiasFn(),
+    staleTime: 15 * 60_000,
+    refetchInterval: 15 * 60_000,
   });
 
   const parciaisFn = useServerFn(getParciais);
@@ -300,7 +313,13 @@ function Index() {
 
       {data?.ok && (
         <div className="space-y-3">
-          <MatchTicker partidas={partidas} clubes={clubes} atletas={atletas} onSelectMatch={setMatch} />
+          <MatchTicker
+            partidas={partidas}
+            clubes={clubes}
+            atletas={atletas}
+            noticias={noticiasResp?.ok ? noticiasResp.noticias : []}
+            onSelectMatch={setMatch}
+          />
 
           {boards.length > 1 && (
             <div className="flex flex-wrap gap-2">
