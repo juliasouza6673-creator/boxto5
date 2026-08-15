@@ -349,3 +349,13 @@ export const getParciais = createServerFn({ method: "GET" }).handler(async () =>
     return { ok: false as const, error: (err as Error).message, pontos: {} as Record<string, number> };
   }
 });
+
+/** Notícias recentes de clubes/jogadores que podem afetar o Cartola. */
+export const getNoticias = createServerFn({ method: "GET" }).handler(async () => {
+  try {
+    const { fetchNews } = await import("./news.server");
+    return { ok: true as const, noticias: await fetchNews() };
+  } catch (err) {
+    return { ok: false as const, error: (err as Error).message, noticias: [] };
+  }
+});
