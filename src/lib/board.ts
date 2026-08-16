@@ -62,7 +62,7 @@ export function buildFormation(nome: string): SlotState[] {
     for (let z = 0; z < def; z++) push(3, 10 + (80 * (z + 1)) / (def + 1), 65);
   }
   push(1, 50, 88);
-  push(6, 88, 88);
+  push(6, 88, 79);
   return slots;
 }
 
