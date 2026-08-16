@@ -436,7 +436,7 @@ export function Pitch({
           <div className="absolute bottom-2 left-2 flex flex-col items-start gap-1">
             <span className="rounded-lg border border-success/40 bg-background/70 px-2 py-0.5 font-display text-[11px] text-success">
               {mercadoAberto
-                ? `Pontuação esperada: ${esperadoTotal === null ? "…" : fmt(esperadoTotal, 2)}`
+                ? `Valorização esperada: ${esperadoTotal === null ? "…" : fmt(esperadoTotal, 2)}`
                 : `Pontuação: ${fmt(
                     board.slots.reduce(
                       (s, sl) => s + (sl.atletaId ? (parciais[String(sl.atletaId)] ?? 0) : 0),
