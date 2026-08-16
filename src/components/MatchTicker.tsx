@@ -1,72 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Atleta, Clube, Partida } from "@/lib/cartola-types";
-import { POS_NOME } from "@/lib/cartola-types";
-import { escudo, fmt } from "@/lib/cartola-ui";
+import type { Clube, Partida } from "@/lib/cartola-types";
+import { escudo } from "@/lib/cartola-ui";
 
 type NewsItem = { titulo: string; link: string; fonte: string };
 
 type Props = {
   partidas: Partida[];
   clubes: Record<string, Clube>;
-  atletas: Atleta[];
   noticias?: NewsItem[];
+  mercadoAberto?: boolean;
   onSelectMatch: (p: Partida) => void;
 };
 
-export function MatchTicker({ partidas, clubes, atletas, noticias = [], onSelectMatch }: Props) {
+export function MatchTicker({ partidas, clubes, noticias = [], mercadoAberto = true, onSelectMatch }: Props) {
   const items = useMemo(() => [...partidas, ...partidas], [partidas]);
-
-  const dicas = useMemo(() => {
-    const out: string[] = [];
-    const byClube = new Map<number, Atleta[]>();
-    for (const a of atletas) {
-      if (![7, 2].includes(a.status_id)) continue;
-      const arr = byClube.get(a.clube_id) ?? [];
-      arr.push(a);
-      byClube.set(a.clube_id, arr);
-    }
-    for (const p of partidas) {
-      const casa = clubes[String(p.clube_casa_id)];
-      const fora = clubes[String(p.clube_visitante_id)];
-      const mandantes = (byClube.get(p.clube_casa_id) ?? [])
-        .sort((a, b) => b.media_num - a.media_num)
-        .slice(0, 2);
-      for (const a of mandantes) {
-        if (a.media_num <= 0) continue;
-        out.push(
-          `🔥 ${a.apelido} (${POS_NOME[a.posicao_id]}, ${casa?.abreviacao ?? ""}) joga em casa contra o ${fora?.nome ?? ""} com média ${fmt(a.media_num, 1)} em ${a.jogos_num} jogos.`,
-        );
-      }
-    }
-    for (const a of atletas.filter((x) => x.status_id === 6 || x.status_id === 3).slice(0, 6)) {
-      out.push(
-        `🚨 ${a.apelido} (${POS_NOME[a.posicao_id]}, ${clubes[String(a.clube_id)]?.abreviacao ?? ""}) está fora da rodada — evite escalar.`,
-      );
-    }
-    for (const a of [...atletas].sort((x, y) => x.variacao_num - y.variacao_num).slice(0, 4)) {
-      out.push(
-        `📉 ${a.apelido} desvalorizou ${fmt(Math.abs(a.variacao_num), 2)} e agora custa C$ ${fmt(a.preco_num, 2)}.`,
-      );
-    }
-    for (const a of [...atletas].sort((x, y) => y.variacao_num - x.variacao_num).slice(0, 4)) {
-      out.push(
-        `📈 ${a.apelido} valorizou ${fmt(a.variacao_num, 2)} — hoje custa C$ ${fmt(a.preco_num, 2)}.`,
-      );
-    }
-    return out.sort(() => Math.random() - 0.5);
-  }, [atletas, clubes, partidas]);
-
-  const feed = useMemo(() => {
-    const news = noticias.map((n) => ({ texto: `📰 ${n.titulo}`, link: n.link, fonte: n.fonte }));
-    const tips = dicas.map((d) => ({ texto: d, link: "", fonte: "Box to 5" }));
-    const out: Array<{ texto: string; link: string; fonte: string }> = [];
-    const max = Math.max(news.length, tips.length);
-    for (let i = 0; i < max; i++) {
-      if (tips[i]) out.push(tips[i]!);
-      if (news[i]) out.push(news[i]!);
-    }
-    return out;
-  }, [dicas, noticias]);
+  const feed = useMemo(() => noticias.filter((n) => n.titulo && n.link), [noticias]);
 
   const scroller = useRef<HTMLDivElement>(null);
   const [paused, setPaused] = useState(false);
@@ -81,17 +29,26 @@ export function MatchTicker({ partidas, clubes, atletas, noticias = [], onSelect
     return () => clearInterval(t);
   }, [paused]);
 
-  const [tip, setTip] = useState(0);
+  const [idx, setIdx] = useState(0);
   useEffect(() => {
     if (!feed.length) return;
-    const t = setInterval(() => setTip((i) => (i + 1) % feed.length), 7000);
-    return () => clearInterval(t);
-  }, [feed.length]);
+    const atual = feed[idx % feed.length]!;
+    const palavras = atual.titulo.trim().split(/\s+/).length;
+    const tempo = Math.min(22000, Math.max(6000, 2500 + palavras * 450));
+    const t = setTimeout(() => setIdx((i) => (i + 1) % feed.length), tempo);
+    return () => clearTimeout(t);
+  }, [feed, idx]);
 
   if (!partidas.length) return null;
+  const noticia = feed.length ? feed[idx % feed.length]! : null;
 
   return (
     <div className="space-y-2">
+      {!mercadoAberto && (
+        <p className="text-center text-[11px] font-semibold text-accent">
+          Clique no confronto e confira as parciais
+        </p>
+      )}
       <div
         ref={scroller}
         onPointerDown={() => setPaused(true)}
@@ -125,33 +82,20 @@ export function MatchTicker({ partidas, clubes, atletas, noticias = [], onSelect
               </button>
             );
           })}
-
         </div>
       </div>
-      {feed.length > 0 && (
-        <div className="flex h-20 flex-col justify-between rounded-xl border border-border bg-panel px-3 py-2">
-          <p key={tip} className="animate-tip line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-            {feed[tip % feed.length]!.texto}
+
+      {noticia && (
+        <a
+          href={noticia.link}
+          target="_blank"
+          rel="noreferrer"
+          className="flex h-16 items-center overflow-hidden rounded-xl border border-border bg-panel px-3 py-2 transition-colors hover:border-accent"
+        >
+          <p key={idx} className="animate-tip line-clamp-3 text-xs leading-snug text-muted-foreground">
+            {noticia.titulo}
           </p>
-          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-            <span className="uppercase tracking-wide">{feed[tip % feed.length]!.fonte}</span>
-            <span className="flex items-center gap-2">
-              {feed[tip % feed.length]!.link && (
-                <a
-                  href={feed[tip % feed.length]!.link}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="font-semibold text-accent"
-                >
-                  ler notícia
-                </a>
-              )}
-              <button onClick={() => setTip((i) => (i + 1) % feed.length)} className="hover:text-accent">
-                próxima ›
-              </button>
-            </span>
-          </div>
-        </div>
+        </a>
       )}
     </div>
   );
