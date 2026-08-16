@@ -141,6 +141,7 @@ type Props = {
   clubes: Record<string, Clube>;
   onOpenPlayer?: ((a: Atleta) => void) | undefined;
   onSell?: (() => void) | undefined;
+  onAdd?: (() => void) | undefined;
   onClose: () => void;
 };
 
@@ -155,7 +156,7 @@ function Foto({ a, size = "h-14 w-14" }: { a: Atleta; size?: string }) {
   );
 }
 
-export function PlayerModal({ atleta, atletas, clubes, onOpenPlayer, onSell, onClose }: Props) {
+export function PlayerModal({ atleta, atletas, clubes, onOpenPlayer, onSell, onAdd, onClose }: Props) {
   const [tab, setTab] = useState<"geral" | "cedimentos">("geral");
   const [showAll, setShowAll] = useState(false);
   const [busca, setBusca] = useState("");
@@ -241,6 +242,14 @@ export function PlayerModal({ atleta, atletas, clubes, onOpenPlayer, onSell, onC
             <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
               ✕
             </button>
+            {!onSell && onAdd && (
+              <button
+                onClick={onAdd}
+                className="rounded-lg border border-success bg-success/10 px-2 py-1 text-xs font-semibold text-success"
+              >
+                + Adicionar
+              </button>
+            )}
             {onSell && (
               <button
                 onClick={onSell}
