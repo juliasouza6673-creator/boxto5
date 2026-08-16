@@ -4,7 +4,15 @@ import { getBestSG } from "@/lib/cartola.functions";
 import type { Clube } from "@/lib/cartola-types";
 import { escudo } from "@/lib/cartola-ui";
 
-export function BestSGModal({ clubes, onClose }: { clubes: Record<string, Clube>; onClose: () => void }) {
+export function BestSGModal({
+  clubes,
+  onSelectMatch,
+  onClose,
+}: {
+  clubes: Record<string, Clube>;
+  onSelectMatch?: (casaId: number, foraId: number) => void;
+  onClose: () => void;
+}) {
   const fn = useServerFn(getBestSG);
   const { data, isLoading } = useQuery({
     queryKey: ["best-sg"],
@@ -39,7 +47,12 @@ export function BestSGModal({ clubes, onClose }: { clubes: Record<string, Clube>
               const a = r.ataqueAdversario;
               return (
                 <div key={`${r.clube_id}-${r.mando}`} className="rounded-lg border border-border bg-panel-2 p-3">
-                  <div className="flex items-center gap-2">
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => onSelectMatch?.(r.clube_casa_id, r.clube_visitante_id)}
+                    className="flex cursor-pointer items-center gap-2 rounded-md hover:bg-panel"
+                  >
                     <span className="font-display text-sm text-accent">{i + 1}º</span>
                     <img src={escudo(casa, "45x45")} alt="" className="h-7 w-7 object-contain" />
                     <span className="text-xs text-muted-foreground">x</span>
