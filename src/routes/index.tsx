@@ -156,12 +156,6 @@ function Index() {
     staleTime: 30_000,
   });
 
-  const esperadoTotal = !titulares.length
-    ? 0
-    : esperado?.ok
-      ? Object.values(esperado.esperado).reduce((s, v) => s + v, 0)
-      : null;
-
   const recomendados = useMemo(() => {
     const casaOuFora = new Map<number, "casa" | "fora">();
     for (const p of partidas) {
@@ -603,6 +597,13 @@ function Index() {
                                   <span className="block text-[10px] text-muted-foreground">
                                     {POS_ABREV[a.posicao_id]} · méd {fmt(a.media_num, 1)}
                                   </span>
+                                  {!mercadoAberto && (
+                                    <span className="block text-[10px] font-bold text-accent">
+                                      {parciais?.ok && parciais.pontos[String(a.atleta_id)] !== undefined
+                                        ? `parcial ${fmt(parciais.pontos[String(a.atleta_id)] ?? 0, 1)} pts`
+                                        : "sem parcial"}
+                                    </span>
+                                  )}
                                   {insights?.ok && (
                                     <span className="block text-[10px]">
                                       <span className="text-success">
