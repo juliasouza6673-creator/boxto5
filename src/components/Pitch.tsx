@@ -221,6 +221,18 @@ export function Pitch({
               MC
             </button>
           </div>
+        <button
+          onClick={onDelete}
+          title="Excluir campinho inteiro"
+          aria-label="Excluir campinho inteiro"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-destructive/60 text-destructive hover:bg-destructive/10"
+        >
+          <IconTrash />
+        </button>
+      </div>
+
+      <div>
+
 
           {drawOpen && (
               <div
