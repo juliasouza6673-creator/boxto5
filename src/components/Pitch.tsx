@@ -158,27 +158,15 @@ export function Pitch({
 
   return (
     <section className="panel p-3">
-      <div className="mb-2 flex items-center gap-2">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
         <input
           value={board.nome}
           onChange={(e) => onRename(e.target.value)}
-          className="min-w-0 flex-1 bg-transparent font-display text-lg tracking-wide outline-none"
+          className="min-w-24 flex-1 bg-transparent font-display text-lg tracking-wide outline-none"
         />
-        <button
-          onClick={onDelete}
-          title="Excluir campinho inteiro"
-          aria-label="Excluir campinho inteiro"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-destructive/60 text-destructive hover:bg-destructive/10"
-        >
-          <IconTrash />
-        </button>
-      </div>
-
-
-      <div>
           <div
             onPointerDown={(e) => e.stopPropagation()}
-            className="mx-auto mb-2 flex w-fit flex-wrap items-center justify-center gap-1 rounded-lg border border-primary/30 bg-panel-2 px-1.5 py-1"
+            className="flex flex-wrap items-center gap-1 rounded-lg border border-primary/30 bg-panel-2 px-1.5 py-1"
           >
             {[
               { t: "Ferramentas avançadas", i: <IconWrench />, f: onOpenAdvanced },
@@ -233,6 +221,18 @@ export function Pitch({
               MC
             </button>
           </div>
+        <button
+          onClick={onDelete}
+          title="Excluir campinho inteiro"
+          aria-label="Excluir campinho inteiro"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-destructive/60 text-destructive hover:bg-destructive/10"
+        >
+          <IconTrash />
+        </button>
+      </div>
+
+      <div>
+
 
           {drawOpen && (
               <div
@@ -436,7 +436,7 @@ export function Pitch({
           <div className="absolute bottom-2 left-2 flex flex-col items-start gap-1">
             <span className="rounded-lg border border-success/40 bg-background/70 px-2 py-0.5 font-display text-[11px] text-success">
               {mercadoAberto
-                ? `Pontuação esperada: ${esperadoTotal === null ? "…" : fmt(esperadoTotal, 2)}`
+                ? `Valorização esperada: ${esperadoTotal === null ? "…" : fmt(esperadoTotal, 2)}`
                 : `Pontuação: ${fmt(
                     board.slots.reduce(
                       (s, sl) => s + (sl.atletaId ? (parciais[String(sl.atletaId)] ?? 0) : 0),

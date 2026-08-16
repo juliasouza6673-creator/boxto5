@@ -16,6 +16,8 @@ import { BestRoundModal } from "@/components/BestRoundModal";
 import { BestSGModal } from "@/components/BestSGModal";
 import { AuthDialog } from "@/components/AuthDialog";
 import { AdvancedTools, type FillScope } from "@/components/AdvancedTools";
+import { PlayerSearch } from "@/components/PlayerSearch";
+import { computeMNO } from "@/lib/mno";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -89,6 +91,8 @@ function Index() {
   const [match, setMatch] = useState<Partida | null>(null);
   const [avisoFechado, setAvisoFechado] = useState(false);
   const [hint, setHint] = useState(false);
+  const [search, setSearch] = useState(false);
+  const [addTarget, setAddTarget] = useState<{ slotId: string; bench: boolean } | null>(null);
 
   useEffect(() => {
     if (userId) return;
@@ -151,12 +155,6 @@ function Index() {
     refetchInterval: 60_000,
     staleTime: 30_000,
   });
-
-  const esperadoTotal = !titulares.length
-    ? 0
-    : esperado?.ok
-      ? Object.values(esperado.esperado).reduce((s, v) => s + v, 0)
-      : null;
 
   const recomendados = useMemo(() => {
     const casaOuFora = new Map<number, "casa" | "fora">();
@@ -231,13 +229,73 @@ function Index() {
     }));
   }, [match, atletas]);
 
+  const rodadaAtual = (live?.ok ? live.status.rodada_atual : data?.ok ? data.status.rodada_atual : 1) ?? 1;
+
+  const valorizacaoTotal = useMemo(() => {
+    if (!board) return 0;
+    return board.slots.reduce((soma, sl) => {
+      const a = sl.atletaId ? atletasById.get(sl.atletaId) : undefined;
+      if (!a) return soma;
+      const mno = computeMNO({
+        rodada: rodadaAtual,
+        preco_atual: a.preco_num,
+        pontos_ultima: a.pontos_num,
+        jogou_ultima: a.pontos_num !== 0,
+        jogos_disputados: a.jogos_num,
+      });
+      return soma + mno.mno_estimado;
+    }, 0);
+  }, [board, atletasById, rodadaAtual]);
+
+  const adicionarAtleta = (a: Atleta) => {
+    if (!board) return;
+    const alvo = addTarget;
+    update(board.id, (b) => {
+      if (alvo) {
+        return {
+          ...b,
+          slots: alvo.bench ? b.slots : b.slots.map((s) => (s.id === alvo.slotId ? { ...s, atletaId: a.atleta_id } : s)),
+          bench: alvo.bench ? b.bench.map((s) => (s.id === alvo.slotId ? { ...s, atletaId: a.atleta_id } : s)) : b.bench,
+        };
+      }
+      const livre = b.slots.find((s) => s.pos === a.posicao_id && !s.atletaId);
+      if (livre) {
+        return { ...b, slots: b.slots.map((s) => (s.id === livre.id ? { ...s, atletaId: a.atleta_id } : s)) };
+      }
+      const banco = b.bench.find((s) => s.pos === a.posicao_id && !s.atletaId) ?? b.bench.find((s) => !s.atletaId);
+      if (banco) {
+        return { ...b, bench: b.bench.map((s) => (s.id === banco.id ? { ...s, atletaId: a.atleta_id } : s)) };
+      }
+      return {
+        ...b,
+        slots: [
+          ...b.slots,
+          { id: crypto.randomUUID(), pos: a.posicao_id, x: 50, y: 50, atletaId: a.atleta_id, extra: true },
+        ],
+      };
+    });
+    setAddTarget(null);
+    showHintOnce();
+  };
+
   return (
     <main className="mx-auto max-w-4xl px-3 pb-16 pt-3 sm:px-6">
       <header className="mb-3 flex items-start justify-between gap-3">
         <h1 className="font-display text-2xl uppercase leading-tight tracking-wide sm:text-3xl">
           Box to <span className="text-accent">5</span>
         </h1>
-        <div className="flex shrink-0 flex-col items-center">
+        <div className="flex shrink-0 items-start gap-3">
+          <button
+            onClick={() => setSearch(true)}
+            className="flex flex-col items-center gap-0.5 text-muted-foreground hover:text-accent"
+            title="Buscar jogador"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6">
+              <circle cx="11" cy="11" r="6.5" />
+              <path d="m16 16 4.5 4.5" strokeLinecap="round" />
+            </svg>
+            <span className="text-[10px] font-semibold">Buscar</span>
+          </button>
           <button
             onClick={() => (userId ? supabase.auth.signOut() : setAuth(true))}
             className="flex flex-col items-center gap-0.5 text-muted-foreground hover:text-accent"
@@ -316,8 +374,8 @@ function Index() {
           <MatchTicker
             partidas={partidas}
             clubes={clubes}
-            atletas={atletas}
             noticias={noticiasResp?.ok ? noticiasResp.noticias : []}
+            mercadoAberto={statusMercado !== 2}
             onSelectMatch={setMatch}
           />
 
@@ -350,7 +408,7 @@ function Index() {
               atletasById={atletasById}
               clubes={clubes}
               recomendados={recomendados}
-              esperadoTotal={esperadoTotal}
+              esperadoTotal={valorizacaoTotal}
               mercadoAberto={statusMercado !== 2}
               parciais={parciais?.ok ? parciais.pontos : {}}
               cedidas={esperado?.ok ? esperado.cedidas : {}}
@@ -383,18 +441,9 @@ function Index() {
           usados={[...board.slots, ...board.bench].map((s) => s.atletaId).filter(Boolean) as number[]}
           recomendados={recomendados}
           onPick={(a) => {
-            const isBench = picker.bench;
-            update(board.id, (b) => ({
-              ...b,
-              slots: isBench
-                ? b.slots
-                : b.slots.map((s) => (s.id === picker.slot.id ? { ...s, atletaId: a.atleta_id } : s)),
-              bench: isBench
-                ? b.bench.map((s) => (s.id === picker.slot.id ? { ...s, atletaId: a.atleta_id } : s))
-                : b.bench,
-            }));
+            setAddTarget({ slotId: picker.slot.id, bench: picker.bench });
             setPicker(null);
-            showHintOnce();
+            setAberto(a);
           }}
           onClose={() => setPicker(null)}
         />
@@ -410,6 +459,14 @@ function Index() {
           atletas={atletas}
           clubes={clubes}
           onOpenPlayer={setAberto}
+          onAdd={
+            !noCampinho(aberto.atleta_id)
+              ? () => {
+                  adicionarAtleta(aberto);
+                  setAberto(null);
+                }
+              : undefined
+          }
           onSell={
             noCampinho(aberto.atleta_id)
               ? () => {
@@ -418,7 +475,23 @@ function Index() {
                 }
               : undefined
           }
-          onClose={() => setAberto(null)}
+          onClose={() => {
+            setAberto(null);
+            setAddTarget(null);
+          }}
+        />
+      )}
+
+      {search && (
+        <PlayerSearch
+          atletas={atletas}
+          clubes={clubes}
+          onPick={(a) => {
+            setAddTarget(null);
+            setSearch(false);
+            setAberto(a);
+          }}
+          onClose={() => setSearch(false)}
         />
       )}
 
@@ -433,7 +506,19 @@ function Index() {
           onClose={() => setBest(false)}
         />
       )}
-      {bestSG && <BestSGModal clubes={clubes} onClose={() => setBestSG(false)} />}
+      {bestSG && (
+        <BestSGModal
+          clubes={clubes}
+          onSelectMatch={(casaId, foraId) => {
+            const p = partidas.find((x) => x.clube_casa_id === casaId && x.clube_visitante_id === foraId);
+            if (p) {
+              setBestSG(false);
+              setMatch(p);
+            }
+          }}
+          onClose={() => setBestSG(false)}
+        />
+      )}
       {auth && <AuthDialog onClose={() => setAuth(false)} />}
 
       {match && (
@@ -512,6 +597,13 @@ function Index() {
                                   <span className="block text-[10px] text-muted-foreground">
                                     {POS_ABREV[a.posicao_id]} · méd {fmt(a.media_num, 1)}
                                   </span>
+                                  {!mercadoAberto && (
+                                    <span className="block text-[10px] font-bold text-accent">
+                                      {parciais?.ok && parciais.pontos[String(a.atleta_id)] !== undefined
+                                        ? `parcial ${fmt(parciais.pontos[String(a.atleta_id)] ?? 0, 1)} pts`
+                                        : "sem parcial"}
+                                    </span>
+                                  )}
                                   {insights?.ok && (
                                     <span className="block text-[10px]">
                                       <span className="text-success">

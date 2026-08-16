@@ -135,12 +135,64 @@ function Metrics({
   );
 }
 
+function CompareTable({
+  a,
+  b,
+  analysisA,
+  analysisB,
+}: {
+  a: Atleta;
+  b: Atleta;
+  analysisA: Analysis | undefined;
+  analysisB: Analysis | undefined;
+}) {
+  const okA = analysisA?.ok && !analysisA.semJogo ? analysisA : null;
+  const okB = analysisB?.ok && !analysisB.semJogo ? analysisB : null;
+  const base: Array<[string, number, number, boolean]> = [
+    ["Preço (C$)", a.preco_num, b.preco_num, false],
+    ["Média geral", a.media_num, b.media_num, true],
+    ["Última pontuação", a.pontos_num, b.pontos_num, true],
+    ["Jogos", a.jogos_num, b.jogos_num, true],
+    ["Variação", a.variacao_num, b.variacao_num, true],
+    ["Média no mando", okA?.mediaMando ?? 0, okB?.mediaMando ?? 0, true],
+    ["Média cedida", okA?.cedimentos.mediaCedida ?? 0, okB?.cedimentos.mediaCedida ?? 0, true],
+    ["Pontuação esperada", okA?.pontuacaoEsperada ?? 0, okB?.pontuacaoEsperada ?? 0, true],
+  ];
+  const keys = Array.from(new Set([...Object.keys(a.scout ?? {}), ...Object.keys(b.scout ?? {})])).sort();
+  const scouts: Array<[string, number, number, boolean]> = keys.map((k) => [
+    k,
+    a.scout?.[k] ?? 0,
+    b.scout?.[k] ?? 0,
+    !isScoutNegative(k),
+  ]);
+  const rows = [...base, ...scouts];
+
+  const cls = (v: number, other: number, maiorMelhor: boolean) => {
+    if (v === other) return "";
+    const melhor = maiorMelhor ? v > other : v < other;
+    return melhor ? "text-success font-bold" : "text-muted-foreground";
+  };
+
+  return (
+    <dl className="divide-y divide-border overflow-hidden rounded-lg border border-border text-sm">
+      {rows.map(([k, va, vb, maiorMelhor]) => (
+        <div key={k} className="grid grid-cols-3 items-center px-2 py-1.5">
+          <dd className={`text-left font-display tracking-wide ${cls(va, vb, maiorMelhor)}`}>{fmt(va, 2)}</dd>
+          <dt className="text-center text-[11px] text-muted-foreground">{k}</dt>
+          <dd className={`text-right font-display tracking-wide ${cls(vb, va, maiorMelhor)}`}>{fmt(vb, 2)}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 type Props = {
   atleta: Atleta;
   atletas: Atleta[];
   clubes: Record<string, Clube>;
   onOpenPlayer?: ((a: Atleta) => void) | undefined;
   onSell?: (() => void) | undefined;
+  onAdd?: (() => void) | undefined;
   onClose: () => void;
 };
 
@@ -155,7 +207,7 @@ function Foto({ a, size = "h-14 w-14" }: { a: Atleta; size?: string }) {
   );
 }
 
-export function PlayerModal({ atleta, atletas, clubes, onOpenPlayer, onSell, onClose }: Props) {
+export function PlayerModal({ atleta, atletas, clubes, onOpenPlayer, onSell, onAdd, onClose }: Props) {
   const [tab, setTab] = useState<"geral" | "cedimentos">("geral");
   const [showAll, setShowAll] = useState(false);
   const [busca, setBusca] = useState("");
@@ -241,6 +293,14 @@ export function PlayerModal({ atleta, atletas, clubes, onOpenPlayer, onSell, onC
             <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
               ✕
             </button>
+            {!onSell && onAdd && (
+              <button
+                onClick={onAdd}
+                className="rounded-lg border border-success bg-success/10 px-2 py-1 text-xs font-semibold text-success"
+              >
+                + Adicionar
+              </button>
+            )}
             {onSell && (
               <button
                 onClick={onSell}
@@ -586,28 +646,30 @@ export function PlayerModal({ atleta, atletas, clubes, onOpenPlayer, onSell, onC
                   </div>
                 )}
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              {outro ? (
+                <>
+                  <div className="mb-3 grid grid-cols-2 gap-3">
+                    <div className="flex flex-col items-center gap-1">
+                      <Foto a={atleta} size="h-16 w-16" />
+                      <p className="text-center font-display text-lg">{atleta.apelido}</p>
+                    </div>
+                    <div className="flex flex-col items-center gap-1">
+                      <Foto a={outro} size="h-16 w-16" />
+                      <p className="text-center font-display text-lg">{outro.apelido}</p>
+                    </div>
+                  </div>
+                  <CompareTable a={atleta} b={outro} analysisA={analysis} analysisB={analysisB} />
+                </>
+              ) : (
                 <div>
                   <div className="mb-2 flex flex-col items-center gap-1">
                     <Foto a={atleta} size="h-16 w-16" />
                     <p className="text-center font-display text-lg">{atleta.apelido}</p>
                   </div>
                   <Metrics atleta={atleta} analysis={analysis} clubes={clubes} />
+                  <p className="pt-4 text-center text-sm text-muted-foreground">Selecione um jogador para comparar.</p>
                 </div>
-                <div>
-                  {outro ? (
-                    <>
-                      <div className="mb-2 flex flex-col items-center gap-1">
-                        <Foto a={outro} size="h-16 w-16" />
-                        <p className="text-center font-display text-lg">{outro.apelido}</p>
-                      </div>
-                      <Metrics atleta={outro} analysis={analysisB} clubes={clubes} />
-                    </>
-                  ) : (
-                    <p className="pt-10 text-center text-sm text-muted-foreground">Selecione um jogador.</p>
-                  )}
-                </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
