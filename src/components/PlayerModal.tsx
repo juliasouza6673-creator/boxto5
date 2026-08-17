@@ -438,9 +438,14 @@ export function PlayerModal({ atleta, atletas, clubes, onOpenPlayer, onSell, onA
                   <div className="space-y-2">
                     {ok.historicoContrario.map((g) => (
                       <div key={g.rodada} className="rounded-lg border border-border bg-panel-2 px-3 py-2">
-                        <p className="mb-1 text-center text-xs text-muted-foreground">
-                          Rodada {g.rodada} · {fmt(g.pontuacao, 2)} pts
+                        <p className="mb-1 text-center text-xs">
+                          <span className="text-foreground">Rodada {g.rodada}</span>{" "}
+                          <span className="text-muted-foreground">·</span>{" "}
+                          <span className={g.pontuacao >= 0 ? "font-bold text-success" : "font-bold text-destructive"}>
+                            {fmt(g.pontuacao, 2)} pts
+                          </span>
                         </p>
+
                         <ScoutLine scout={g.scout} />
                       </div>
                     ))}
