@@ -90,6 +90,16 @@ export function Pitch({
     0,
   );
 
+  const mnoDe = (a: Atleta) =>
+    computeMNO({
+      rodada,
+      preco_atual: a.preco_num,
+      pontos_ultima: a.pontos_num,
+      jogou_ultima: a.pontos_num !== 0,
+      jogos_disputados: a.jogos_num,
+    }).mno_estimado;
+
+
   const rel = (e: { clientX: number; clientY: number }) => {
     const r = ref.current!.getBoundingClientRect();
     return {
