@@ -476,11 +476,16 @@ export function Pitch({
                 ? `Valorização esperada: ${esperadoTotal === null ? "…" : fmt(esperadoTotal, 2)}`
                 : `Pontuação: ${fmt(
                     board.slots.reduce(
-                      (s, sl) => s + (sl.atletaId ? (parciais[String(sl.atletaId)] ?? 0) : 0),
+                      (s, sl) =>
+                        s +
+                        (sl.atletaId
+                          ? (parciais[String(sl.atletaId)] ?? 0) * (board.capitao === sl.atletaId ? 1.5 : 1)
+                          : 0),
                       0,
                     ),
                     2,
                   )}`}
+
             </span>
             <select
               value={board.formacao}
