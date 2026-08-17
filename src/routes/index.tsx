@@ -586,27 +586,76 @@ function Index() {
                                 )}
                                 <span className="min-w-0 flex-1">
                                   <span className="block truncate text-xs">{a.apelido}</span>
-                                  <span className="block text-[10px] text-muted-foreground">
-                                    {POS_ABREV[a.posicao_id]} · méd {fmt(a.media_num, 1)}
-                                  </span>
-                                  {!mercadoAberto && (
-                                    <span className="block text-[10px] font-bold text-accent">
-                                      {parciais?.ok && parciais.pontos[String(a.atleta_id)] !== undefined
-                                        ? `parcial ${fmt(parciais.pontos[String(a.atleta_id)] ?? 0, 1)} pts`
-                                        : "sem parcial"}
-                                    </span>
-                                  )}
-                                  {insights?.ok && (
-                                    <span className="block text-[10px]">
-                                      <span className="text-success">
-                                        cede {fmt(insights.cedida[`${side === 0 ? "casa" : "fora"}-${a.posicao_id}`] ?? 0, 1)}
-                                      </span>{" "}
-                                      <span className="text-foreground/80">
-                                        mando {fmt(insights.mediaMando[String(a.atleta_id)] ?? 0, 1)}
+                                  {!mercadoAberto ? (
+                                    (() => {
+                                      const pts = parciais?.ok
+                                        ? parciais.pontos[String(a.atleta_id)]
+                                        : undefined;
+                                      if (pts === undefined)
+                                        return (
+                                          <span className="block text-[10px] text-muted-foreground">sem parcial</span>
+                                        );
+                                      const sc = parciais?.ok ? (parciais.scouts?.[String(a.atleta_id)] ?? {}) : {};
+                                      const mno = computeMNO({
+                                        rodada: rodadaAtual,
+                                        preco_atual: a.preco_num,
+                                        pontos_ultima: a.pontos_num,
+                                        jogou_ultima: a.pontos_num !== 0,
+                                        jogos_disputados: a.jogos_num,
+                                      }).mno_estimado;
+                                      const val = liveValuation(pts, mno);
+                                      return (
+                                        <>
+                                          <span
+                                            className={`block text-[11px] font-bold ${pts >= 0 ? "text-success" : "text-destructive"}`}
+                                          >
+                                            {fmt(pts, 1)} pts
+                                          </span>
+                                          <span className="flex flex-wrap gap-1 text-[9px]">
+                                            {Object.entries(sc)
+                                              .filter(([, v]) => v > 0)
+                                              .map(([k, v]) => (
+                                                <span
+                                                  key={k}
+                                                  className={
+                                                    isScoutNegative(k) ? "text-destructive" : "text-success"
+                                                  }
+                                                >
+                                                  {k} {v}
+                                                </span>
+                                              ))}
+                                          </span>
+                                          <span
+                                            className={`block text-[10px] font-bold ${val.status === "VALORIZANDO" ? "text-success" : "text-destructive"}`}
+                                          >
+                                            {val.texto_exibicao}
+                                          </span>
+                                        </>
+                                      );
+                                    })()
+                                  ) : (
+                                    <>
+                                      <span className="block text-[10px] text-muted-foreground">
+                                        {POS_ABREV[a.posicao_id]} · méd {fmt(a.media_num, 1)}
                                       </span>
-                                    </span>
+                                      {insights?.ok && (
+                                        <span className="block text-[10px]">
+                                          <span className="text-success">
+                                            cede{" "}
+                                            {fmt(
+                                              insights.cedida[`${side === 0 ? "casa" : "fora"}-${a.posicao_id}`] ?? 0,
+                                              1,
+                                            )}
+                                          </span>{" "}
+                                          <span className="text-foreground/80">
+                                            mando {fmt(insights.mediaMando[String(a.atleta_id)] ?? 0, 1)}
+                                          </span>
+                                        </span>
+                                      )}
+                                    </>
                                   )}
                                 </span>
+
 
                               </button>
                             ) : (
