@@ -18,6 +18,15 @@ export function MatchTicker({ partidas, clubes, noticias = [], mercadoAberto = t
 
   const scroller = useRef<HTMLDivElement>(null);
   const [paused, setPaused] = useState(false);
+  const retomar = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Pausa temporária quando o usuário arrasta/rola para voltar em um confronto.
+  const pausarTemporariamente = () => {
+    setPaused(true);
+    if (retomar.current) clearTimeout(retomar.current);
+    retomar.current = setTimeout(() => setPaused(false), 2500);
+  };
+
   useEffect(() => {
     if (paused) return;
     const t = setInterval(() => {
@@ -28,6 +37,7 @@ export function MatchTicker({ partidas, clubes, noticias = [], mercadoAberto = t
     }, 30);
     return () => clearInterval(t);
   }, [paused]);
+
 
   const [idx, setIdx] = useState(0);
   useEffect(() => {
