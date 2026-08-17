@@ -318,11 +318,12 @@ function Index() {
               Mercado {mercadoAberto ? "Aberto" : "Fechado"}
             </span>
           )}
-          {!!fechamento && (
+          {!!fechamento && mercadoAberto && (
             <span>
               Fecha em <Countdown timestamp={fechamento} />
             </span>
           )}
+
         </div>
         <div className="mt-2 grid grid-cols-2 gap-2">
           <button
