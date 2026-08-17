@@ -16,12 +16,14 @@ export function PlayerSearch({ atletas, clubes, onPick, onClose }: Props) {
 
   const lista = useMemo(() => {
     const q = busca.trim().toLowerCase();
+    const rank = (s: number) => (s === 7 ? 0 : s === 2 ? 1 : 2);
     return atletas
       .filter((a) => (pos ? a.posicao_id === pos : true))
       .filter((a) => (q ? a.apelido.toLowerCase().includes(q) : true))
-      .sort((a, b) => b.media_num - a.media_num)
+      .sort((a, b) => rank(a.status_id) - rank(b.status_id) || b.media_num - a.media_num)
       .slice(0, 120);
   }, [atletas, busca, pos]);
+
 
   return (
     <div
