@@ -173,18 +173,21 @@ function CompareTable({
     return melhor ? "text-success font-bold" : "text-muted-foreground";
   };
 
+  const num = (v: number) => (Number.isInteger(v) ? String(v) : fmt(v, 2));
+
   return (
     <dl className="divide-y divide-border overflow-hidden rounded-lg border border-border text-sm">
       {rows.map(([k, va, vb, maiorMelhor]) => (
         <div key={k} className="grid grid-cols-3 items-center px-2 py-1.5">
-          <dd className={`text-left font-display tracking-wide ${cls(va, vb, maiorMelhor)}`}>{fmt(va, 2)}</dd>
+          <dd className={`text-left font-display tracking-wide ${cls(va, vb, maiorMelhor)}`}>{num(va)}</dd>
           <dt className="text-center text-[11px] text-muted-foreground">{k}</dt>
-          <dd className={`text-right font-display tracking-wide ${cls(vb, va, maiorMelhor)}`}>{fmt(vb, 2)}</dd>
+          <dd className={`text-right font-display tracking-wide ${cls(vb, va, maiorMelhor)}`}>{num(vb)}</dd>
         </div>
       ))}
     </dl>
   );
 }
+
 
 type Props = {
   atleta: Atleta;
