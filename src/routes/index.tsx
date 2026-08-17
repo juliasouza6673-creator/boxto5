@@ -506,19 +506,8 @@ function Index() {
           onClose={() => setBest(false)}
         />
       )}
-      {bestSG && (
-        <BestSGModal
-          clubes={clubes}
-          onSelectMatch={(casaId, foraId) => {
-            const p = partidas.find((x) => x.clube_casa_id === casaId && x.clube_visitante_id === foraId);
-            if (p) {
-              setBestSG(false);
-              setMatch(p);
-            }
-          }}
-          onClose={() => setBestSG(false)}
-        />
-      )}
+      {bestSG && <BestSGModal clubes={clubes} onClose={() => setBestSG(false)} />}
+
       {auth && <AuthDialog onClose={() => setAuth(false)} />}
 
       {match && (
