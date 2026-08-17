@@ -372,6 +372,9 @@ export function Pitch({
           {board.slots.map((slot) => {
             const a = slot.atletaId ? atletasById.get(slot.atletaId) : undefined;
             const foto = a ? playerPhoto(a) : null;
+            const capitao = !!a && board.capitao === a.atleta_id;
+            const pts = a ? (parciais[String(a.atleta_id)] ?? 0) * (capitao ? 1.5 : 1) : 0;
+            const val = a && !mercadoAberto ? liveValuation(pts, mnoDe(a)) : null;
             return (
               <div
                 key={slot.id}
@@ -401,6 +404,17 @@ export function Pitch({
                         alt=""
                         className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-background object-contain"
                       />
+                      <button
+                        title={capitao ? "Remover capitão" : "Definir como capitão"}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onChange((b) => ({ ...b, capitao: b.capitao === a.atleta_id ? null : a.atleta_id }));
+                        }}
+                        className={`absolute -left-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border font-display text-[8px] ${capitao ? "border-accent bg-accent text-background" : "border-border bg-background/80 text-muted-foreground"}`}
+                      >
+                        C
+                      </button>
                       {recomendados.includes(a.atleta_id) && (
                         <span className="absolute -top-2 right-0 text-[10px] text-accent">★</span>
                       )}
@@ -413,13 +427,21 @@ export function Pitch({
                 {a && (
                   <span className="rounded bg-black px-1 text-[9px] font-bold text-white">
                     {!mercadoAberto
-                      ? `${fmt(parciais[String(a.atleta_id)] ?? 0, 1)} pts`
+                      ? `${fmt(pts, 1)} pts`
                       : mcOn
                         ? `MC ${fmt(cedidas[String(a.atleta_id)] ?? 0, 1)}`
                         : `C$ ${fmt(a.preco_num, 1)}`}
                   </span>
                 )}
+                {a && val && (
+                  <span
+                    className={`rounded bg-black px-1 text-[8px] font-bold ${val.status === "VALORIZANDO" ? "text-success" : "text-destructive"}`}
+                  >
+                    {val.texto_exibicao}
+                  </span>
+                )}
               </div>
+
             );
           })}
 
