@@ -63,6 +63,7 @@ export function Pitch({
   recomendados,
   esperadoTotal,
   mercadoAberto,
+  rodada,
   parciais,
   cedidas,
   onChange,
@@ -73,6 +74,7 @@ export function Pitch({
   onRename,
   onDelete,
 }: Props) {
+
   const ref = useRef<HTMLDivElement>(null);
   const [tool, setTool] = useState<Tool>("none");
   const [color, setColor] = useState("#ff7a18");

@@ -410,7 +410,9 @@ function Index() {
               recomendados={recomendados}
               esperadoTotal={valorizacaoTotal}
               mercadoAberto={statusMercado !== 2}
+              rodada={rodadaAtual}
               parciais={parciais?.ok ? parciais.pontos : {}}
+
               cedidas={esperado?.ok ? esperado.cedidas : {}}
               onChange={(patch) => update(board.id, patch)}
               onSlotClick={(slot) => setPicker({ slot, bench: false })}
