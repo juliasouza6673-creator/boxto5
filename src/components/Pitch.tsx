@@ -4,6 +4,7 @@ import { buildFormation } from "@/lib/board";
 import type { Atleta, Clube, Esquema } from "@/lib/cartola-types";
 import { POS_ABREV } from "@/lib/cartola-types";
 import { escudo, fmt, playerPhoto, statusBorderClass } from "@/lib/cartola-ui";
+import { computeMNO, liveValuation } from "@/lib/mno";
 
 type Tool = "none" | "pen" | "text" | "eraser";
 
@@ -16,6 +17,7 @@ type Props = {
   recomendados: number[];
   esperadoTotal: number | null;
   mercadoAberto: boolean;
+  rodada: number;
   parciais: Record<string, number>;
   cedidas: Record<string, number>;
   onChange: (patch: (b: Board) => Board) => void;
@@ -26,6 +28,7 @@ type Props = {
   onRename: (nome: string) => void;
   onDelete: () => void;
 };
+
 
 
 const IconWrench = () => (
@@ -60,6 +63,7 @@ export function Pitch({
   recomendados,
   esperadoTotal,
   mercadoAberto,
+  rodada,
   parciais,
   cedidas,
   onChange,
@@ -70,6 +74,7 @@ export function Pitch({
   onRename,
   onDelete,
 }: Props) {
+
   const ref = useRef<HTMLDivElement>(null);
   const [tool, setTool] = useState<Tool>("none");
   const [color, setColor] = useState("#ff7a18");
@@ -84,6 +89,16 @@ export function Pitch({
     (s, sl) => s + (sl.atletaId ? (atletasById.get(sl.atletaId)?.preco_num ?? 0) : 0),
     0,
   );
+
+  const mnoDe = (a: Atleta) =>
+    computeMNO({
+      rodada,
+      preco_atual: a.preco_num,
+      pontos_ultima: a.pontos_num,
+      jogou_ultima: a.pontos_num !== 0,
+      jogos_disputados: a.jogos_num,
+    }).mno_estimado;
+
 
   const rel = (e: { clientX: number; clientY: number }) => {
     const r = ref.current!.getBoundingClientRect();
@@ -367,6 +382,9 @@ export function Pitch({
           {board.slots.map((slot) => {
             const a = slot.atletaId ? atletasById.get(slot.atletaId) : undefined;
             const foto = a ? playerPhoto(a) : null;
+            const capitao = !!a && board.capitao === a.atleta_id;
+            const pts = a ? (parciais[String(a.atleta_id)] ?? 0) * (capitao ? 1.5 : 1) : 0;
+            const val = a && !mercadoAberto ? liveValuation(pts, mnoDe(a)) : null;
             return (
               <div
                 key={slot.id}
@@ -396,6 +414,17 @@ export function Pitch({
                         alt=""
                         className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-background object-contain"
                       />
+                      <button
+                        title={capitao ? "Remover capitão" : "Definir como capitão"}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onChange((b) => ({ ...b, capitao: b.capitao === a.atleta_id ? null : a.atleta_id }));
+                        }}
+                        className={`absolute -left-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border font-display text-[8px] ${capitao ? "border-accent bg-accent text-background" : "border-border bg-background/80 text-muted-foreground"}`}
+                      >
+                        C
+                      </button>
                       {recomendados.includes(a.atleta_id) && (
                         <span className="absolute -top-2 right-0 text-[10px] text-accent">★</span>
                       )}
@@ -408,13 +437,21 @@ export function Pitch({
                 {a && (
                   <span className="rounded bg-black px-1 text-[9px] font-bold text-white">
                     {!mercadoAberto
-                      ? `${fmt(parciais[String(a.atleta_id)] ?? 0, 1)} pts`
+                      ? `${fmt(pts, 1)} pts`
                       : mcOn
                         ? `MC ${fmt(cedidas[String(a.atleta_id)] ?? 0, 1)}`
                         : `C$ ${fmt(a.preco_num, 1)}`}
                   </span>
                 )}
+                {a && val && (
+                  <span
+                    className={`rounded bg-black px-1 text-[8px] font-bold ${val.status === "VALORIZANDO" ? "text-success" : "text-destructive"}`}
+                  >
+                    {val.texto_exibicao}
+                  </span>
+                )}
               </div>
+
             );
           })}
 
@@ -439,11 +476,16 @@ export function Pitch({
                 ? `Valorização esperada: ${esperadoTotal === null ? "…" : fmt(esperadoTotal, 2)}`
                 : `Pontuação: ${fmt(
                     board.slots.reduce(
-                      (s, sl) => s + (sl.atletaId ? (parciais[String(sl.atletaId)] ?? 0) : 0),
+                      (s, sl) =>
+                        s +
+                        (sl.atletaId
+                          ? (parciais[String(sl.atletaId)] ?? 0) * (board.capitao === sl.atletaId ? 1.5 : 1)
+                          : 0),
                       0,
                     ),
                     2,
                   )}`}
+
             </span>
             <select
               value={board.formacao}

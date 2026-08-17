@@ -22,7 +22,9 @@ export type Board = {
   strokes: Stroke[];
   bubbles: TextBubble[];
   locked: boolean;
+  capitao?: number | null;
 };
+
 
 
 const ROW_X: Record<number, number[]> = {

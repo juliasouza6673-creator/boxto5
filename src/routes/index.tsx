@@ -1,12 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
 import { supabase } from "@/integrations/supabase/client";
 import { getBootstrap, getExpectedPoints, getMarketStatus, getMatchInsights, getNoticias, getParciais } from "@/lib/cartola.functions";
 import type { Atleta, Clube, Partida } from "@/lib/cartola-types";
 import { POS_ABREV, POS_NOME } from "@/lib/cartola-types";
-import { escudo, fmt, isEscalavel, playerPhoto } from "@/lib/cartola-ui";
+import { escudo, fmt, isEscalavel, isScoutNegative, playerPhoto } from "@/lib/cartola-ui";
 import { useBoards, type SlotState } from "@/lib/board";
 import { MatchTicker } from "@/components/MatchTicker";
 import { Pitch } from "@/components/Pitch";
@@ -17,7 +18,7 @@ import { BestSGModal } from "@/components/BestSGModal";
 import { AuthDialog } from "@/components/AuthDialog";
 import { AdvancedTools, type FillScope } from "@/components/AdvancedTools";
 import { PlayerSearch } from "@/components/PlayerSearch";
-import { computeMNO } from "@/lib/mno";
+import { computeMNO, liveValuation } from "@/lib/mno";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -208,6 +209,18 @@ function Index() {
   const mercadoAberto = statusMercado === 1;
   const atualizado = new Date(live?.ok ? live.atualizadoEm : (data?.ok ? data.atualizadoEm : Date.now()));
 
+  // Ao reabrir o mercado, recarrega análises para incluir a rodada que passou.
+  const qc = useQueryClient();
+  const statusAnterior = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (statusAnterior.current === 2 && statusMercado === 1) {
+      void qc.invalidateQueries();
+    }
+    statusAnterior.current = statusMercado;
+  }, [statusMercado, qc]);
+
+
+
   const matchData = match?.partida_data ? new Date(match.partida_data.replace(" ", "T")) : null;
   const { data: insights } = useQuery({
     queryKey: ["match-insights", match?.clube_casa_id, match?.clube_visitante_id],
@@ -318,11 +331,12 @@ function Index() {
               Mercado {mercadoAberto ? "Aberto" : "Fechado"}
             </span>
           )}
-          {!!fechamento && (
+          {!!fechamento && mercadoAberto && (
             <span>
               Fecha em <Countdown timestamp={fechamento} />
             </span>
           )}
+
         </div>
         <div className="mt-2 grid grid-cols-2 gap-2">
           <button
@@ -410,7 +424,9 @@ function Index() {
               recomendados={recomendados}
               esperadoTotal={valorizacaoTotal}
               mercadoAberto={statusMercado !== 2}
+              rodada={rodadaAtual}
               parciais={parciais?.ok ? parciais.pontos : {}}
+
               cedidas={esperado?.ok ? esperado.cedidas : {}}
               onChange={(patch) => update(board.id, patch)}
               onSlotClick={(slot) => setPicker({ slot, bench: false })}
@@ -506,19 +522,8 @@ function Index() {
           onClose={() => setBest(false)}
         />
       )}
-      {bestSG && (
-        <BestSGModal
-          clubes={clubes}
-          onSelectMatch={(casaId, foraId) => {
-            const p = partidas.find((x) => x.clube_casa_id === casaId && x.clube_visitante_id === foraId);
-            if (p) {
-              setBestSG(false);
-              setMatch(p);
-            }
-          }}
-          onClose={() => setBestSG(false)}
-        />
-      )}
+      {bestSG && <BestSGModal clubes={clubes} onClose={() => setBestSG(false)} />}
+
       {auth && <AuthDialog onClose={() => setAuth(false)} />}
 
       {match && (
@@ -594,27 +599,76 @@ function Index() {
                                 )}
                                 <span className="min-w-0 flex-1">
                                   <span className="block truncate text-xs">{a.apelido}</span>
-                                  <span className="block text-[10px] text-muted-foreground">
-                                    {POS_ABREV[a.posicao_id]} · méd {fmt(a.media_num, 1)}
-                                  </span>
-                                  {!mercadoAberto && (
-                                    <span className="block text-[10px] font-bold text-accent">
-                                      {parciais?.ok && parciais.pontos[String(a.atleta_id)] !== undefined
-                                        ? `parcial ${fmt(parciais.pontos[String(a.atleta_id)] ?? 0, 1)} pts`
-                                        : "sem parcial"}
-                                    </span>
-                                  )}
-                                  {insights?.ok && (
-                                    <span className="block text-[10px]">
-                                      <span className="text-success">
-                                        cede {fmt(insights.cedida[`${side === 0 ? "casa" : "fora"}-${a.posicao_id}`] ?? 0, 1)}
-                                      </span>{" "}
-                                      <span className="text-foreground/80">
-                                        mando {fmt(insights.mediaMando[String(a.atleta_id)] ?? 0, 1)}
+                                  {!mercadoAberto ? (
+                                    (() => {
+                                      const pts = parciais?.ok
+                                        ? parciais.pontos[String(a.atleta_id)]
+                                        : undefined;
+                                      if (pts === undefined)
+                                        return (
+                                          <span className="block text-[10px] text-muted-foreground">sem parcial</span>
+                                        );
+                                      const sc = parciais?.ok ? (parciais.scouts?.[String(a.atleta_id)] ?? {}) : {};
+                                      const mno = computeMNO({
+                                        rodada: rodadaAtual,
+                                        preco_atual: a.preco_num,
+                                        pontos_ultima: a.pontos_num,
+                                        jogou_ultima: a.pontos_num !== 0,
+                                        jogos_disputados: a.jogos_num,
+                                      }).mno_estimado;
+                                      const val = liveValuation(pts, mno);
+                                      return (
+                                        <>
+                                          <span
+                                            className={`block text-[11px] font-bold ${pts >= 0 ? "text-success" : "text-destructive"}`}
+                                          >
+                                            {fmt(pts, 1)} pts
+                                          </span>
+                                          <span className="flex flex-wrap gap-1 text-[9px]">
+                                            {Object.entries(sc)
+                                              .filter(([, v]) => v > 0)
+                                              .map(([k, v]) => (
+                                                <span
+                                                  key={k}
+                                                  className={
+                                                    isScoutNegative(k) ? "text-destructive" : "text-success"
+                                                  }
+                                                >
+                                                  {k} {v}
+                                                </span>
+                                              ))}
+                                          </span>
+                                          <span
+                                            className={`block text-[10px] font-bold ${val.status === "VALORIZANDO" ? "text-success" : "text-destructive"}`}
+                                          >
+                                            {val.texto_exibicao}
+                                          </span>
+                                        </>
+                                      );
+                                    })()
+                                  ) : (
+                                    <>
+                                      <span className="block text-[10px] text-muted-foreground">
+                                        {POS_ABREV[a.posicao_id]} · méd {fmt(a.media_num, 1)}
                                       </span>
-                                    </span>
+                                      {insights?.ok && (
+                                        <span className="block text-[10px]">
+                                          <span className="text-success">
+                                            cede{" "}
+                                            {fmt(
+                                              insights.cedida[`${side === 0 ? "casa" : "fora"}-${a.posicao_id}`] ?? 0,
+                                              1,
+                                            )}
+                                          </span>{" "}
+                                          <span className="text-foreground/80">
+                                            mando {fmt(insights.mediaMando[String(a.atleta_id)] ?? 0, 1)}
+                                          </span>
+                                        </span>
+                                      )}
+                                    </>
                                   )}
                                 </span>
+
 
                               </button>
                             ) : (

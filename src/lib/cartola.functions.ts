@@ -343,12 +343,22 @@ export const getParciais = createServerFn({ method: "GET" }).handler(async () =>
   try {
     const p = await m.getParciais();
     const pontos: Record<string, number> = {};
-    for (const [id, a] of Object.entries(p.atletas ?? {})) pontos[id] = a.pontuacao ?? 0;
-    return { ok: true as const, rodada: p.rodada, pontos, atualizadoEm: Date.now() };
+    const scouts: Record<string, Record<string, number>> = {};
+    for (const [id, a] of Object.entries(p.atletas ?? {})) {
+      pontos[id] = a.pontuacao ?? 0;
+      scouts[id] = a.scout ?? {};
+    }
+    return { ok: true as const, rodada: p.rodada, pontos, scouts, atualizadoEm: Date.now() };
   } catch (err) {
-    return { ok: false as const, error: (err as Error).message, pontos: {} as Record<string, number> };
+    return {
+      ok: false as const,
+      error: (err as Error).message,
+      pontos: {} as Record<string, number>,
+      scouts: {} as Record<string, Record<string, number>>,
+    };
   }
 });
+
 
 /** Notícias recentes de clubes/jogadores que podem afetar o Cartola. */
 export const getNoticias = createServerFn({ method: "GET" }).handler(async () => {

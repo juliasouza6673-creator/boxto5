@@ -16,12 +16,14 @@ export function PlayerSearch({ atletas, clubes, onPick, onClose }: Props) {
 
   const lista = useMemo(() => {
     const q = busca.trim().toLowerCase();
+    const rank = (s: number) => (s === 7 ? 0 : s === 2 ? 1 : 2);
     return atletas
       .filter((a) => (pos ? a.posicao_id === pos : true))
       .filter((a) => (q ? a.apelido.toLowerCase().includes(q) : true))
-      .sort((a, b) => b.media_num - a.media_num)
+      .sort((a, b) => rank(a.status_id) - rank(b.status_id) || b.media_num - a.media_num)
       .slice(0, 120);
   }, [atletas, busca, pos]);
+
 
   return (
     <div
@@ -45,8 +47,10 @@ export function PlayerSearch({ atletas, clubes, onPick, onClose }: Props) {
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Digite o nome do jogador"
-            className="mb-2 w-full rounded-lg border border-border bg-panel-2 px-3 py-2 text-sm outline-none focus:border-accent"
+            style={{ fontSize: 16 }}
+            className="mb-2 w-full rounded-lg border border-border bg-panel-2 px-3 py-2 outline-none focus:border-accent"
           />
+
           <div className="flex gap-1.5 overflow-x-auto pb-1">
             <button
               onClick={() => setPos(null)}

@@ -18,6 +18,15 @@ export function MatchTicker({ partidas, clubes, noticias = [], mercadoAberto = t
 
   const scroller = useRef<HTMLDivElement>(null);
   const [paused, setPaused] = useState(false);
+  const retomar = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Pausa temporária quando o usuário arrasta/rola para voltar em um confronto.
+  const pausarTemporariamente = () => {
+    setPaused(true);
+    if (retomar.current) clearTimeout(retomar.current);
+    retomar.current = setTimeout(() => setPaused(false), 2500);
+  };
+
   useEffect(() => {
     if (paused) return;
     const t = setInterval(() => {
@@ -28,6 +37,7 @@ export function MatchTicker({ partidas, clubes, noticias = [], mercadoAberto = t
     }, 30);
     return () => clearInterval(t);
   }, [paused]);
+
 
   const [idx, setIdx] = useState(0);
   useEffect(() => {
@@ -51,12 +61,17 @@ export function MatchTicker({ partidas, clubes, noticias = [], mercadoAberto = t
       )}
       <div
         ref={scroller}
-        onPointerDown={() => setPaused(true)}
-        onPointerUp={() => setPaused(false)}
+        onPointerDown={pausarTemporariamente}
+        onPointerMove={(e) => {
+          if (e.buttons === 1) pausarTemporariamente();
+        }}
+        onWheel={pausarTemporariamente}
+        onTouchMove={pausarTemporariamente}
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}
         className="relative snap-x overflow-x-auto rounded-xl border border-border bg-panel py-2"
       >
+
         <div className="flex w-max gap-3 px-2">
           {items.map((p, i) => {
             const casa = clubes[String(p.clube_casa_id)];

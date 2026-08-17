@@ -173,18 +173,21 @@ function CompareTable({
     return melhor ? "text-success font-bold" : "text-muted-foreground";
   };
 
+  const num = (v: number) => (Number.isInteger(v) ? String(v) : fmt(v, 2));
+
   return (
     <dl className="divide-y divide-border overflow-hidden rounded-lg border border-border text-sm">
       {rows.map(([k, va, vb, maiorMelhor]) => (
         <div key={k} className="grid grid-cols-3 items-center px-2 py-1.5">
-          <dd className={`text-left font-display tracking-wide ${cls(va, vb, maiorMelhor)}`}>{fmt(va, 2)}</dd>
+          <dd className={`text-left font-display tracking-wide ${cls(va, vb, maiorMelhor)}`}>{num(va)}</dd>
           <dt className="text-center text-[11px] text-muted-foreground">{k}</dt>
-          <dd className={`text-right font-display tracking-wide ${cls(vb, va, maiorMelhor)}`}>{fmt(vb, 2)}</dd>
+          <dd className={`text-right font-display tracking-wide ${cls(vb, va, maiorMelhor)}`}>{num(vb)}</dd>
         </div>
       ))}
     </dl>
   );
 }
+
 
 type Props = {
   atleta: Atleta;
@@ -400,9 +403,14 @@ export function PlayerModal({ atleta, atletas, clubes, onOpenPlayer, onSell, onA
                   <div className="space-y-2">
                     {ok.historico.map((g) => (
                       <div key={g.rodada} className="rounded-lg border border-border bg-panel-2 px-3 py-2">
-                        <p className="mb-1 text-center text-xs text-muted-foreground">
-                          Rodada {g.rodada} · {fmt(g.pontuacao, 2)} pts
+                        <p className="mb-1 text-center text-xs">
+                          <span className="text-foreground">Rodada {g.rodada}</span>{" "}
+                          <span className="text-muted-foreground">·</span>{" "}
+                          <span className={g.pontuacao >= 0 ? "font-bold text-success" : "font-bold text-destructive"}>
+                            {fmt(g.pontuacao, 2)} pts
+                          </span>
                         </p>
+
                         <ScoutLine scout={g.scout} />
                       </div>
                     ))}
@@ -430,9 +438,14 @@ export function PlayerModal({ atleta, atletas, clubes, onOpenPlayer, onSell, onA
                   <div className="space-y-2">
                     {ok.historicoContrario.map((g) => (
                       <div key={g.rodada} className="rounded-lg border border-border bg-panel-2 px-3 py-2">
-                        <p className="mb-1 text-center text-xs text-muted-foreground">
-                          Rodada {g.rodada} · {fmt(g.pontuacao, 2)} pts
+                        <p className="mb-1 text-center text-xs">
+                          <span className="text-foreground">Rodada {g.rodada}</span>{" "}
+                          <span className="text-muted-foreground">·</span>{" "}
+                          <span className={g.pontuacao >= 0 ? "font-bold text-success" : "font-bold text-destructive"}>
+                            {fmt(g.pontuacao, 2)} pts
+                          </span>
                         </p>
+
                         <ScoutLine scout={g.scout} />
                       </div>
                     ))}
