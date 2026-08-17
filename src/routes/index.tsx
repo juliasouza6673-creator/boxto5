@@ -208,6 +208,18 @@ function Index() {
   const mercadoAberto = statusMercado === 1;
   const atualizado = new Date(live?.ok ? live.atualizadoEm : (data?.ok ? data.atualizadoEm : Date.now()));
 
+  // Ao reabrir o mercado, recarrega análises para incluir a rodada que passou.
+  const qc = useQueryClient();
+  const statusAnterior = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (statusAnterior.current === 2 && statusMercado === 1) {
+      void qc.invalidateQueries();
+    }
+    statusAnterior.current = statusMercado;
+  }, [statusMercado, qc]);
+
+
+
   const matchData = match?.partida_data ? new Date(match.partida_data.replace(" ", "T")) : null;
   const { data: insights } = useQuery({
     queryKey: ["match-insights", match?.clube_casa_id, match?.clube_visitante_id],
