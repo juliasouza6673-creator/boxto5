@@ -47,8 +47,10 @@ export function PlayerSearch({ atletas, clubes, onPick, onClose }: Props) {
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Digite o nome do jogador"
-            className="mb-2 w-full rounded-lg border border-border bg-panel-2 px-3 py-2 text-sm outline-none focus:border-accent"
+            style={{ fontSize: 16 }}
+            className="mb-2 w-full rounded-lg border border-border bg-panel-2 px-3 py-2 outline-none focus:border-accent"
           />
+
           <div className="flex gap-1.5 overflow-x-auto pb-1">
             <button
               onClick={() => setPos(null)}
