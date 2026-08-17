@@ -4,6 +4,7 @@ import { buildFormation } from "@/lib/board";
 import type { Atleta, Clube, Esquema } from "@/lib/cartola-types";
 import { POS_ABREV } from "@/lib/cartola-types";
 import { escudo, fmt, playerPhoto, statusBorderClass } from "@/lib/cartola-ui";
+import { computeMNO, liveValuation } from "@/lib/mno";
 
 type Tool = "none" | "pen" | "text" | "eraser";
 
@@ -16,6 +17,7 @@ type Props = {
   recomendados: number[];
   esperadoTotal: number | null;
   mercadoAberto: boolean;
+  rodada: number;
   parciais: Record<string, number>;
   cedidas: Record<string, number>;
   onChange: (patch: (b: Board) => Board) => void;
@@ -26,6 +28,7 @@ type Props = {
   onRename: (nome: string) => void;
   onDelete: () => void;
 };
+
 
 
 const IconWrench = () => (
