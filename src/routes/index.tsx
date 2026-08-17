@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getBootstrap, getExpectedPoints, getMarketStatus, getMatchInsights, getNoticias, getParciais } from "@/lib/cartola.functions";
 import type { Atleta, Clube, Partida } from "@/lib/cartola-types";
 import { POS_ABREV, POS_NOME } from "@/lib/cartola-types";
-import { escudo, fmt, isEscalavel, playerPhoto } from "@/lib/cartola-ui";
+import { escudo, fmt, isEscalavel, isScoutNegative, playerPhoto } from "@/lib/cartola-ui";
 import { useBoards, type SlotState } from "@/lib/board";
 import { MatchTicker } from "@/components/MatchTicker";
 import { Pitch } from "@/components/Pitch";
@@ -17,7 +17,7 @@ import { BestSGModal } from "@/components/BestSGModal";
 import { AuthDialog } from "@/components/AuthDialog";
 import { AdvancedTools, type FillScope } from "@/components/AdvancedTools";
 import { PlayerSearch } from "@/components/PlayerSearch";
-import { computeMNO } from "@/lib/mno";
+import { computeMNO, liveValuation } from "@/lib/mno";
 
 export const Route = createFileRoute("/")({
   head: () => ({
