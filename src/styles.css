@@ -102,14 +102,39 @@
   h3,
   .font-display {
     font-family: var(--font-display);
+    text-transform: uppercase;
+    letter-spacing: -0.01em;
   }
 }
 
 @utility panel {
   background-color: var(--color-panel);
-  border: 1px solid var(--color-border);
+  border: 2px solid var(--color-border);
   border-radius: var(--radius-lg);
 }
+
+/* Card recortado de jornal: borda preta grossa + sombra dura */
+@utility brutal {
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: 4px 4px 0 0 var(--color-border);
+  background-color: var(--color-panel);
+}
+
+@utility brutal-sm {
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: 2px 2px 0 0 var(--color-border);
+}
+
+@utility font-condensed {
+  font-family: var(--font-condensed);
+}
+
+@utility dashed-sep {
+  border-top: 1px dashed color-mix(in oklab, var(--color-border) 45%, transparent);
+}
+
 
 @keyframes ticker {
   from {
