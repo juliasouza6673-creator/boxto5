@@ -383,8 +383,10 @@ export function Pitch({
             const a = slot.atletaId ? atletasById.get(slot.atletaId) : undefined;
             const foto = a ? playerPhoto(a) : null;
             const capitao = !!a && board.capitao === a.atleta_id;
-            const pts = a ? (parciais[String(a.atleta_id)] ?? 0) * (capitao ? 1.5 : 1) : 0;
-            const val = a && !mercadoAberto ? liveValuation(pts, mnoDe(a)) : null;
+            const ptsBase = a ? (parciais[String(a.atleta_id)] ?? 0) : 0;
+            const pts = ptsBase * (capitao ? 1.5 : 1);
+            // Capitão multiplica só a pontuação — a valorização usa a pontuação real.
+            const val = a && !mercadoAberto ? liveValuation(ptsBase, mnoDe(a)) : null;
             return (
               <div
                 key={slot.id}
