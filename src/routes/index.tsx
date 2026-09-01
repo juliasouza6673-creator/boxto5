@@ -291,124 +291,333 @@ function Index() {
     showHintOnce();
   };
 
+  const emManutencao = statusMercado === 3 || statusMercado === 4 || (data && !data.ok);
+  const mercadoLabel = emManutencao ? "Mercado em Manutenção" : mercadoAberto ? "Mercado Aberto" : "Mercado Fechado";
+
+  const partidasOrdenadas = useMemo(
+    () => [...partidas].sort((a, b) => (a.partida_data ?? "").localeCompare(b.partida_data ?? "")),
+    [partidas],
+  );
+
+  const jogadoresLista = useMemo(() => {
+    const q = filtroNome.trim().toLowerCase();
+    return atletas
+      .filter((a) => (filtroPos ? a.posicao_id === filtroPos : true))
+      .filter((a) => (q ? a.apelido.toLowerCase().includes(q) : true))
+      .filter((a) => (soFavoritos ? favoritos.includes(a.atleta_id) : true))
+      .sort((a, b) => b.media_num - a.media_num)
+      .slice(0, 150);
+  }, [atletas, filtroPos, filtroNome, soFavoritos, favoritos]);
+
+  const noticias = noticiasResp?.ok ? noticiasResp.noticias : [];
+
+  const TABS: Array<{ id: TabId; label: string }> = [
+    { id: "confrontos", label: "Confrontos" },
+    { id: "campinho", label: "Campinho" },
+    { id: "jogadores", label: "Jogadores" },
+    { id: "noticias", label: "Notícias" },
+  ];
+
   return (
-    <main className="mx-auto max-w-4xl px-3 pb-16 pt-3 sm:px-6">
-      <header className="mb-3 flex items-start justify-between gap-3">
-        <h1 className="font-display text-2xl uppercase leading-tight tracking-wide sm:text-3xl">
-          Box to <span className="text-accent">5</span>
+    <main className="mx-auto max-w-6xl px-3 pb-16 pt-3 sm:px-6">
+      <div className="mb-3 brutal bg-primary px-3 py-1.5 text-center font-condensed text-[11px] uppercase tracking-widest text-primary-foreground">
+        Dados e análises baseados nas últimas 5 rodadas · Rodada {rodadaAtual}
+      </div>
+
+      <header className="mb-3 flex items-end justify-between gap-3 border-b-2 border-border pb-2">
+        <h1 className="font-display text-3xl leading-none sm:text-5xl">
+          Box to <span className="text-primary">5</span>
         </h1>
-        <div className="flex shrink-0 items-start gap-3">
+        <div className="flex shrink-0 items-center gap-2">
           <button
             onClick={() => setSearch(true)}
-            className="flex flex-col items-center gap-0.5 text-muted-foreground hover:text-accent"
+            className="brutal-sm bg-panel px-2 py-1 font-condensed text-[11px] uppercase hover:bg-accent"
             title="Buscar jogador"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6">
-              <circle cx="11" cy="11" r="6.5" />
-              <path d="m16 16 4.5 4.5" strokeLinecap="round" />
-            </svg>
-            <span className="text-[10px] font-semibold">Buscar</span>
+            ⌕ Buscar
           </button>
           <button
             onClick={() => (userId ? supabase.auth.signOut() : setAuth(true))}
-            className="flex flex-col items-center gap-0.5 text-muted-foreground hover:text-accent"
+            className="brutal-sm bg-panel px-2 py-1 font-condensed text-[11px] uppercase hover:bg-accent"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6">
-              <circle cx="12" cy="8" r="3.5" />
-              <path d="M4.5 20a7.5 7.5 0 0 1 15 0" strokeLinecap="round" />
-            </svg>
-            <span className="text-[10px] font-semibold">{userId ? "Sair" : "Entrar"}</span>
+            {userId ? "Sair" : "Entrar"}
           </button>
         </div>
       </header>
 
-      <div className="mb-3 rounded-xl border border-border bg-panel px-3 py-2 text-xs text-muted-foreground">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          {statusMercado !== undefined && (
-            <span
-              className={`rounded-md border px-2 py-0.5 font-display tracking-wide ${mercadoAberto ? "border-success text-success" : "border-destructive text-destructive"}`}
-            >
-              Mercado {mercadoAberto ? "Aberto" : "Fechado"}
-            </span>
-          )}
-          {!!fechamento && mercadoAberto && (
-            <span>
+      <div className="mb-3 brutal p-2">
+        <div className="flex flex-wrap items-center gap-2 text-[11px]">
+          <span
+            className={`brutal-sm px-2 py-0.5 font-condensed uppercase tracking-wide ${
+              emManutencao
+                ? "bg-accent text-accent-foreground"
+                : mercadoAberto
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-destructive text-destructive-foreground"
+            }`}
+          >
+            {mercadoLabel}
+          </span>
+          {!!fechamento && mercadoAberto && !emManutencao && (
+            <span className="font-condensed uppercase">
               Fecha em <Countdown timestamp={fechamento} />
             </span>
           )}
-
-        </div>
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          <button
-            onClick={() => setBest(true)}
-            className="rounded-lg border border-accent px-2 py-1.5 text-[11px] font-semibold text-accent sm:text-xs"
-          >
-            Melhores opções para rodada
-          </button>
-          <button
-            onClick={() => setBestSG(true)}
-            className="rounded-lg border border-success px-2 py-1.5 text-[11px] font-semibold text-success sm:text-xs"
-          >
-            Melhores SGs
-          </button>
+          <span className="ml-auto flex gap-2">
+            <button
+              onClick={() => setBest(true)}
+              className="brutal-sm bg-primary px-2 py-1 font-condensed text-[11px] uppercase text-primary-foreground"
+            >
+              Melhores Opções →
+            </button>
+            <button
+              onClick={() => setBestSG(true)}
+              className="brutal-sm bg-accent px-2 py-1 font-condensed text-[11px] uppercase text-accent-foreground"
+            >
+              Melhores SG →
+            </button>
+          </span>
         </div>
       </div>
 
+      <nav className="mb-4 flex gap-4 overflow-x-auto border-b-2 border-border">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`-mb-0.5 shrink-0 border-b-4 px-1 pb-1.5 font-condensed text-sm uppercase tracking-wide ${
+              tab === t.id ? "border-primary text-foreground" : "border-transparent text-muted-foreground"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
 
       {!userId && !avisoFechado && (
-        <div className="mb-3 flex items-center gap-2 rounded-xl border border-warning/50 bg-panel px-3 py-2 text-xs">
+        <div className="mb-3 flex items-center gap-2 brutal bg-accent px-3 py-2 text-xs text-accent-foreground">
           <span className="flex-1">Você está usando o app sem login. Suas alterações não serão salvas.</span>
-          <button onClick={() => setAuth(true)} className="font-semibold text-accent">
+          <button onClick={() => setAuth(true)} className="font-bold underline">
             Entrar
           </button>
-          <button onClick={() => setAvisoFechado(true)} className="text-muted-foreground">
-            ✕
-          </button>
+          <button onClick={() => setAvisoFechado(true)}>✕</button>
         </div>
       )}
 
       {hint && (
-        <div className="mb-3 flex items-center gap-2 rounded-xl border border-accent/50 bg-panel px-3 py-2 text-xs">
+        <div className="mb-3 flex items-center gap-2 brutal px-3 py-2 text-xs">
           <span className="flex-1">Para ver detalhes do jogador clique nele.</span>
-          <button onClick={() => setHint(false)} className="text-muted-foreground">
-            ✕
-          </button>
+          <button onClick={() => setHint(false)}>✕</button>
         </div>
       )}
 
-      {isLoading && <p className="py-10 text-center text-muted-foreground">Carregando mercado do Cartola…</p>}
+      {isLoading && <p className="py-10 text-center font-condensed uppercase text-muted-foreground">Carregando mercado do Cartola…</p>}
       {data && !data.ok && (
-        <p className="rounded-xl border border-destructive/50 bg-panel p-4 text-center text-sm text-destructive">
-          {data.error}
-        </p>
+        <p className="brutal bg-destructive p-4 text-center text-sm text-destructive-foreground">{data.error}</p>
       )}
 
-      {data?.ok && (
-        <div className="space-y-3">
-          <MatchTicker
-            partidas={partidas}
-            clubes={clubes}
-            noticias={noticiasResp?.ok ? noticiasResp.noticias : []}
-            mercadoAberto={statusMercado !== 2}
-            onSelectMatch={setMatch}
-          />
+      {data?.ok && tab === "confrontos" && (
+        <section className="grid gap-4 lg:grid-cols-[1fr_320px]">
+          <div className="space-y-3">
+            <h2 className="font-display text-xl">Confrontos da rodada {rodadaAtual}</h2>
+            {!mercadoAberto && !emManutencao && (
+              <p className="font-condensed text-[11px] uppercase text-primary">
+                Clique no confronto e confira as parciais
+              </p>
+            )}
+            <div className="grid gap-2 sm:grid-cols-2">
+              {partidasOrdenadas.map((p, i) => {
+                const d = p.partida_data ? new Date(p.partida_data.replace(" ", "T")) : null;
+                const ativo = match === p;
+                return (
+                  <button
+                    key={i}
+                    onClick={() => setMatch(ativo ? null : p)}
+                    className={`brutal px-3 py-2 text-left ${ativo ? "bg-accent" : "bg-panel"}`}
+                  >
+                    <span className="flex items-center justify-center gap-2">
+                      <img src={escudo(clubes[String(p.clube_casa_id)], "45x45")} alt="" className="h-8 w-8 object-contain" />
+                      <span className="font-condensed text-xs uppercase">
+                        {clubes[String(p.clube_casa_id)]?.abreviacao} x {clubes[String(p.clube_visitante_id)]?.abreviacao}
+                      </span>
+                      <img
+                        src={escudo(clubes[String(p.clube_visitante_id)], "45x45")}
+                        alt=""
+                        className="h-8 w-8 object-contain"
+                      />
+                    </span>
+                    <span className="mt-1 block text-center text-[10px] text-muted-foreground">
+                      {d
+                        ? d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
+                        : "Data a definir"}
+                      {p.local ? ` · ${p.local}` : ""}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
 
+            {match && (
+              <article className="brutal p-3">
+                <header className="border-b-2 border-dashed border-border pb-2 text-center">
+                  <div className="flex items-center justify-center gap-4">
+                    <img src={escudo(clubes[String(match.clube_casa_id)], "60x60")} alt="" className="h-12 w-12 object-contain" />
+                    <span className="font-display text-lg">x</span>
+                    <img
+                      src={escudo(clubes[String(match.clube_visitante_id)], "60x60")}
+                      alt=""
+                      className="h-12 w-12 object-contain"
+                    />
+                  </div>
+                  <p className="mt-1 font-condensed text-xs uppercase">
+                    {matchData
+                      ? matchData.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
+                      : "Data a definir"}
+                    {match.local ? ` · ${match.local}` : ""}
+                  </p>
+                </header>
+                <div className="space-y-3 pt-3">
+                  {linhas.map((linha) => {
+                    const max = Math.max(linha.casa.length, linha.fora.length);
+                    if (!max) return null;
+                    return (
+                      <section key={linha.pos}>
+                        <p className="mb-1 text-center font-condensed text-[11px] uppercase tracking-wide text-muted-foreground">
+                          {POS_NOME[linha.pos]}
+                        </p>
+                        <div className="space-y-1.5">
+                          {Array.from({ length: max }).map((_, i) => (
+                            <div key={i} className="grid grid-cols-2 gap-2">
+                              {[linha.casa[i], linha.fora[i]].map((a, side) =>
+                                a ? (
+                                  <button
+                                    key={side}
+                                    onClick={() => setAberto(a)}
+                                    className="flex items-center gap-2 brutal-sm bg-panel-2 px-2 py-2 text-left"
+                                  >
+                                    {playerPhoto(a) ? (
+                                      <img src={playerPhoto(a)!} alt="" className="h-8 w-8 rounded-full object-cover" />
+                                    ) : (
+                                      <span className="h-8 w-8 rounded-full bg-secondary" />
+                                    )}
+                                    <span className="min-w-0 flex-1">
+                                      <span className="block truncate text-xs font-bold">{a.apelido}</span>
+                                      {!mercadoAberto ? (
+                                        (() => {
+                                          const pts = parciais?.ok ? parciais.pontos[String(a.atleta_id)] : undefined;
+                                          if (pts === undefined)
+                                            return <span className="block text-[10px] text-muted-foreground">sem parcial</span>;
+                                          const sc = parciais?.ok ? (parciais.scouts?.[String(a.atleta_id)] ?? {}) : {};
+                                          const mno = computeMNO({
+                                            rodada: rodadaAtual,
+                                            preco_atual: a.preco_num,
+                                            pontos_ultima: a.pontos_num,
+                                            jogou_ultima: a.pontos_num !== 0,
+                                            jogos_disputados: a.jogos_num,
+                                          }).mno_estimado;
+                                          const val = liveValuation(pts, mno);
+                                          return (
+                                            <>
+                                              <span
+                                                className={`block text-[11px] font-bold ${pts >= 0 ? "text-success" : "text-destructive"}`}
+                                              >
+                                                {fmt(pts, 1)} pts
+                                              </span>
+                                              <span className="flex flex-wrap gap-1 text-[9px]">
+                                                {Object.entries(sc)
+                                                  .filter(([, v]) => v > 0)
+                                                  .map(([k, v]) => (
+                                                    <span key={k} className={isScoutNegative(k) ? "text-destructive" : "text-success"}>
+                                                      {k} {v}
+                                                    </span>
+                                                  ))}
+                                              </span>
+                                              <span
+                                                className={`block text-[10px] font-bold ${val.status === "VALORIZANDO" ? "text-success" : "text-destructive"}`}
+                                              >
+                                                {val.texto_exibicao}
+                                              </span>
+                                            </>
+                                          );
+                                        })()
+                                      ) : (
+                                        <>
+                                          <span className="block text-[10px] text-muted-foreground">
+                                            {POS_ABREV[a.posicao_id]} · méd {fmt(a.media_num, 1)}
+                                          </span>
+                                          {insights?.ok && (
+                                            <span className="block text-[10px]">
+                                              <span className="text-success">
+                                                cede {fmt(insights.cedida[`${side === 0 ? "casa" : "fora"}-${a.posicao_id}`] ?? 0, 1)}
+                                              </span>{" "}
+                                              <span className="text-foreground/80">
+                                                mando {fmt(insights.mediaMando[String(a.atleta_id)] ?? 0, 1)}
+                                              </span>
+                                            </span>
+                                          )}
+                                        </>
+                                      )}
+                                    </span>
+                                  </button>
+                                ) : (
+                                  <span key={side} />
+                                ),
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                    );
+                  })}
+                </div>
+              </article>
+            )}
+          </div>
+
+          <aside className="space-y-3">
+            <div className="brutal bg-ink p-3 text-panel">
+              <h3 className="font-display text-xl text-panel">Sua rodada</h3>
+              <p className="mt-1 text-[11px] text-panel/80">
+                {board ? `${board.slots.filter((s) => s.atletaId).length} jogadores escalados` : "Monte seu time"}
+              </p>
+              <button
+                onClick={() => setTab("campinho")}
+                className="mt-3 w-full brutal-sm bg-primary px-2 py-1.5 font-condensed text-xs uppercase text-primary-foreground"
+              >
+                Ir para o campinho →
+              </button>
+            </div>
+            <div className="brutal p-3">
+              <h3 className="font-display text-base">Últimas notícias</h3>
+              <ul className="mt-2 space-y-2">
+                {noticias.slice(0, 5).map((n) => (
+                  <li key={n.link} className="dashed-sep pt-2 first:border-0 first:pt-0">
+                    <a href={n.link} target="_blank" rel="noreferrer" className="text-[11px] leading-snug hover:underline">
+                      {n.titulo}
+                    </a>
+                  </li>
+                ))}
+                {!noticias.length && <li className="text-[11px] text-muted-foreground">Sem notícias no momento.</li>}
+              </ul>
+            </div>
+          </aside>
+        </section>
+      )}
+
+      {data?.ok && tab === "campinho" && (
+        <section className="space-y-3">
           {boards.length > 1 && (
             <div className="flex flex-wrap gap-2">
               {boards.map((b) => (
                 <span key={b.id} className="flex items-center gap-1">
                   <button
                     onClick={() => setActiveId(b.id)}
-                    className={`rounded-lg border px-2 py-1 text-xs ${b.id === activeId ? "border-accent text-accent" : "border-border text-muted-foreground"}`}
+                    className={`brutal-sm px-2 py-1 font-condensed text-xs uppercase ${b.id === activeId ? "bg-primary text-primary-foreground" : "bg-panel"}`}
                   >
                     {b.nome}
                   </button>
-                  <button onClick={() => move(b.id, -1)} className="text-xs text-muted-foreground">
-                    ←
-                  </button>
-                  <button onClick={() => move(b.id, 1)} className="text-xs text-muted-foreground">
-                    →
-                  </button>
+                  <button onClick={() => move(b.id, -1)} className="text-xs">←</button>
+                  <button onClick={() => move(b.id, 1)} className="text-xs">→</button>
                 </span>
               ))}
             </div>
@@ -426,7 +635,6 @@ function Index() {
               mercadoAberto={statusMercado !== 2}
               rodada={rodadaAtual}
               parciais={parciais?.ok ? parciais.pontos : {}}
-
               cedidas={esperado?.ok ? esperado.cedidas : {}}
               onChange={(patch) => update(board.id, patch)}
               onSlotClick={(slot) => setPicker({ slot, bench: false })}
@@ -442,11 +650,105 @@ function Index() {
 
           <button
             onClick={add}
-            className="w-full rounded-xl border border-dashed border-border py-2 text-sm text-muted-foreground hover:border-accent hover:text-accent"
+            className="w-full brutal-sm bg-panel py-2 font-condensed text-sm uppercase hover:bg-accent"
           >
             + Adicionar campinho
           </button>
-        </div>
+        </section>
+      )}
+
+      {data?.ok && tab === "jogadores" && (
+        <section className="space-y-3">
+          <div className="brutal p-3">
+            <div className="flex flex-wrap gap-2">
+              <input
+                value={filtroNome}
+                onChange={(e) => setFiltroNome(e.target.value)}
+                placeholder="Buscar por nome"
+                style={{ fontSize: 16 }}
+                className="min-w-[180px] flex-1 brutal-sm bg-panel-2 px-2 py-1 outline-none"
+              />
+              <button
+                onClick={() => setSoFavoritos((v) => !v)}
+                className={`brutal-sm px-2 py-1 font-condensed text-xs uppercase ${soFavoritos ? "bg-accent" : "bg-panel"}`}
+              >
+                ★ Favoritos
+              </button>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <button
+                onClick={() => setFiltroPos(null)}
+                className={`brutal-sm px-2 py-0.5 font-condensed text-[11px] uppercase ${!filtroPos ? "bg-primary text-primary-foreground" : "bg-panel"}`}
+              >
+                Todos
+              </button>
+              {[1, 2, 3, 4, 5, 6].map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setFiltroPos(filtroPos === p ? null : p)}
+                  className={`brutal-sm px-2 py-0.5 font-condensed text-[11px] uppercase ${filtroPos === p ? "bg-primary text-primary-foreground" : "bg-panel"}`}
+                >
+                  {POS_NOME[p]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {jogadoresLista.map((a) => (
+              <div key={a.atleta_id} className="flex items-center gap-2 brutal px-2 py-2">
+                <button onClick={() => setAberto(a)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+                  {playerPhoto(a) ? (
+                    <img src={playerPhoto(a)!} alt={a.apelido} className="h-9 w-9 rounded-full object-cover" />
+                  ) : (
+                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary font-display text-xs">
+                      {a.apelido.slice(0, 2).toUpperCase()}
+                    </span>
+                  )}
+                  <img src={escudo(clubes[String(a.clube_id)], "30x30")} alt="" className="h-5 w-5 object-contain" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-xs font-bold">{a.apelido}</span>
+                    <span className="block text-[10px] text-muted-foreground">
+                      {POS_ABREV[a.posicao_id]} · méd {fmt(a.media_num, 1)} · C$ {fmt(a.preco_num, 2)}
+                    </span>
+                  </span>
+                </button>
+                <button
+                  onClick={() => toggleFavorito(a.atleta_id)}
+                  title="Favoritar"
+                  className={`text-lg leading-none ${favoritos.includes(a.atleta_id) ? "text-accent" : "text-muted-foreground"}`}
+                >
+                  ★
+                </button>
+              </div>
+            ))}
+            {!jogadoresLista.length && (
+              <p className="text-sm text-muted-foreground">Nenhum jogador encontrado.</p>
+            )}
+          </div>
+        </section>
+      )}
+
+      {data?.ok && tab === "noticias" && (
+        <section className="grid gap-3 sm:grid-cols-2">
+          {noticias.map((n) => (
+            <a
+              key={n.link}
+              href={n.link}
+              target="_blank"
+              rel="noreferrer"
+              className="brutal p-3 hover:bg-accent"
+            >
+              <p className="font-condensed text-sm uppercase leading-snug">{n.titulo}</p>
+              {n.data && (
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  {new Date(n.data).toLocaleDateString("pt-BR")}
+                </p>
+              )}
+            </a>
+          ))}
+          {!noticias.length && <p className="text-sm text-muted-foreground">Sem notícias no momento.</p>}
+        </section>
       )}
 
       {picker && board && (
@@ -525,166 +827,6 @@ function Index() {
       {bestSG && <BestSGModal clubes={clubes} onClose={() => setBestSG(false)} />}
 
       {auth && <AuthDialog onClose={() => setAuth(false)} />}
-
-      {match && (
-        <div
-          className="fixed inset-0 z-[60] flex items-end justify-center bg-background/85 p-0 sm:items-center sm:p-4"
-          onClick={() => setMatch(null)}
-        >
-          <div
-            className="flex max-h-[85vh] w-full max-w-2xl flex-col rounded-t-2xl border border-border bg-panel sm:rounded-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <header className="relative border-b border-border p-4 text-center">
-              <button onClick={() => setMatch(null)} className="absolute right-4 top-4 text-muted-foreground">
-                ✕
-              </button>
-              <div className="flex items-center justify-center gap-4">
-                <div className="flex flex-col items-center gap-1">
-                  <img src={escudo(clubes[String(match.clube_casa_id)], "60x60")} alt="" className="h-12 w-12 object-contain" />
-                  <span className="text-[11px] text-muted-foreground">
-                    {clubes[String(match.clube_casa_id)]?.abreviacao}
-                  </span>
-                </div>
-                <span className="font-display text-lg">x</span>
-                <div className="flex flex-col items-center gap-1">
-                  <img
-                    src={escudo(clubes[String(match.clube_visitante_id)], "60x60")}
-                    alt=""
-                    className="h-12 w-12 object-contain"
-                  />
-                  <span className="text-[11px] text-muted-foreground">
-                    {clubes[String(match.clube_visitante_id)]?.abreviacao}
-                  </span>
-                </div>
-              </div>
-              <p className="mt-2 text-xs text-accent">
-                {matchData
-                  ? matchData.toLocaleString("pt-BR", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })
-                  : "Data a definir"}
-              </p>
-              <p className="text-xs text-muted-foreground">{match.local ?? ""}</p>
-            </header>
-            <div className="space-y-3 overflow-y-auto p-3">
-              {linhas.map((linha) => {
-                const max = Math.max(linha.casa.length, linha.fora.length);
-                if (!max) return null;
-                return (
-                  <section key={linha.pos}>
-                    <p className="mb-1 text-center font-display text-[11px] tracking-wide text-muted-foreground">
-                      {POS_NOME[linha.pos]}
-                    </p>
-                    <div className="space-y-1.5">
-                      {Array.from({ length: max }).map((_, i) => (
-                        <div key={i} className="grid grid-cols-2 gap-2">
-                          {[linha.casa[i], linha.fora[i]].map((a, side) =>
-                            a ? (
-                              <button
-                                key={side}
-                                onClick={() => {
-                                  setAberto(a);
-                                  setMatch(null);
-                                }}
-                                className="flex items-center gap-2 rounded-lg border border-border bg-panel-2 px-2 py-2 text-left"
-                              >
-                                {playerPhoto(a) ? (
-                                  <img src={playerPhoto(a)!} alt="" className="h-8 w-8 rounded-full object-cover" />
-                                ) : (
-                                  <span className="h-8 w-8 rounded-full bg-secondary" />
-                                )}
-                                <span className="min-w-0 flex-1">
-                                  <span className="block truncate text-xs">{a.apelido}</span>
-                                  {!mercadoAberto ? (
-                                    (() => {
-                                      const pts = parciais?.ok
-                                        ? parciais.pontos[String(a.atleta_id)]
-                                        : undefined;
-                                      if (pts === undefined)
-                                        return (
-                                          <span className="block text-[10px] text-muted-foreground">sem parcial</span>
-                                        );
-                                      const sc = parciais?.ok ? (parciais.scouts?.[String(a.atleta_id)] ?? {}) : {};
-                                      const mno = computeMNO({
-                                        rodada: rodadaAtual,
-                                        preco_atual: a.preco_num,
-                                        pontos_ultima: a.pontos_num,
-                                        jogou_ultima: a.pontos_num !== 0,
-                                        jogos_disputados: a.jogos_num,
-                                      }).mno_estimado;
-                                      const val = liveValuation(pts, mno);
-                                      return (
-                                        <>
-                                          <span
-                                            className={`block text-[11px] font-bold ${pts >= 0 ? "text-success" : "text-destructive"}`}
-                                          >
-                                            {fmt(pts, 1)} pts
-                                          </span>
-                                          <span className="flex flex-wrap gap-1 text-[9px]">
-                                            {Object.entries(sc)
-                                              .filter(([, v]) => v > 0)
-                                              .map(([k, v]) => (
-                                                <span
-                                                  key={k}
-                                                  className={
-                                                    isScoutNegative(k) ? "text-destructive" : "text-success"
-                                                  }
-                                                >
-                                                  {k} {v}
-                                                </span>
-                                              ))}
-                                          </span>
-                                          <span
-                                            className={`block text-[10px] font-bold ${val.status === "VALORIZANDO" ? "text-success" : "text-destructive"}`}
-                                          >
-                                            {val.texto_exibicao}
-                                          </span>
-                                        </>
-                                      );
-                                    })()
-                                  ) : (
-                                    <>
-                                      <span className="block text-[10px] text-muted-foreground">
-                                        {POS_ABREV[a.posicao_id]} · méd {fmt(a.media_num, 1)}
-                                      </span>
-                                      {insights?.ok && (
-                                        <span className="block text-[10px]">
-                                          <span className="text-success">
-                                            cede{" "}
-                                            {fmt(
-                                              insights.cedida[`${side === 0 ? "casa" : "fora"}-${a.posicao_id}`] ?? 0,
-                                              1,
-                                            )}
-                                          </span>{" "}
-                                          <span className="text-foreground/80">
-                                            mando {fmt(insights.mediaMando[String(a.atleta_id)] ?? 0, 1)}
-                                          </span>
-                                        </span>
-                                      )}
-                                    </>
-                                  )}
-                                </span>
-
-
-                              </button>
-                            ) : (
-                              <span key={side} />
-                            ),
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
 
       <p className="mt-6 text-center text-[10px] text-muted-foreground/70">
         {mounted
