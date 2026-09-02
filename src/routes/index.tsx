@@ -9,7 +9,6 @@ import type { Atleta, Clube, Partida } from "@/lib/cartola-types";
 import { POS_ABREV, POS_NOME } from "@/lib/cartola-types";
 import { escudo, fmt, isEscalavel, isScoutNegative, playerPhoto } from "@/lib/cartola-ui";
 import { useBoards, type SlotState } from "@/lib/board";
-import { MatchTicker } from "@/components/MatchTicker";
 import { Pitch } from "@/components/Pitch";
 import { PlayerPicker } from "@/components/PlayerPicker";
 import { PlayerModal } from "@/components/PlayerModal";
@@ -42,6 +41,9 @@ export const Route = createFileRoute("/")({
 });
 
 const HINT_KEY = "taticspro.hint.playerclick";
+const FAV_KEY = "boxto5.favoritos";
+
+type TabId = "confrontos" | "campinho" | "jogadores" | "noticias";
 
 function Countdown({ timestamp }: { timestamp: number }) {
   const [now, setNow] = useState<number | null>(null);
@@ -94,6 +96,32 @@ function Index() {
   const [hint, setHint] = useState(false);
   const [search, setSearch] = useState(false);
   const [addTarget, setAddTarget] = useState<{ slotId: string; bench: boolean } | null>(null);
+  const [tab, setTab] = useState<TabId>("confrontos");
+  const [filtroPos, setFiltroPos] = useState<number | null>(null);
+  const [filtroNome, setFiltroNome] = useState("");
+  const [soFavoritos, setSoFavoritos] = useState(false);
+  const [favoritos, setFavoritos] = useState<number[]>([]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(FAV_KEY);
+      if (raw) setFavoritos(JSON.parse(raw) as number[]);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const toggleFavorito = (id: number) => {
+    setFavoritos((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      try {
+        localStorage.setItem(FAV_KEY, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (userId) return;
