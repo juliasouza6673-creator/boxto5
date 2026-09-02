@@ -369,3 +369,20 @@ export const getNoticias = createServerFn({ method: "GET" }).handler(async () =>
     return { ok: false as const, error: (err as Error).message, noticias: [] };
   }
 });
+
+export const getCedimentosMapa = createServerFn({ method: "POST" })
+  .inputValidator((d: { adversario: number; subs: Record<string, string> }) => d)
+  .handler(async ({ data }) => {
+    try {
+      const { getStatus, opponentMap, cedimentoPorSubcategoria } = await import("./cartola-analysis.server");
+      const status = await getStatus();
+      const rodada = status.rodada_atual ?? 1;
+      const om = await opponentMap(rodada);
+      const info = om[data.adversario];
+      const mando = info?.mando ?? "casa";
+      const mapa = await cedimentoPorSubcategoria(data.adversario, mando, rodada, data.subs);
+      return { ok: true as const, rodada, mando, adversarioProximo: info?.adversario ?? null, mapa };
+    } catch (err) {
+      return { ok: false as const, error: (err as Error).message };
+    }
+  });
