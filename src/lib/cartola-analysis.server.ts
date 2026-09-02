@@ -305,3 +305,111 @@ export async function playerLastRounds(
 export async function getParciais() {
   return cartolaGet<PontuadosResp>("/atletas/pontuados", 45_000);
 }
+
+/* ---------------- Cedimentos por subcategoria ---------------- */
+
+export type SubKey = string;
+
+export type CedimentoSub = {
+  sub: SubKey;
+  amostra: number;
+  usouFallback: boolean;
+  gols: number;
+  assistencias: number;
+  desarmes: number;
+  defesas: number;
+  sgCedidos: number;
+  mediaCedida: number;
+  jogos: Array<{ rodada: number; atleta_id?: number; apelido: string; clube_id: number; pontuacao: number; scout: Scout }>;
+};
+
+const AMOSTRA_MINIMA = 3;
+
+/**
+ * Cedimento do adversário por subcategoria, respeitando o mando.
+ * `subs` mapeia atleta_id -> sigla da subcategoria (vinda do banco).
+ */
+export async function cedimentoPorSubcategoria(
+  adversarioId: number,
+  mandoDoAdversario: "casa" | "fora",
+  rodadaAtual: number,
+  subs: Record<string, string>,
+  n = 5,
+): Promise<Record<SubKey, CedimentoSub>> {
+  type Reg = { rodada: number; atleta_id?: number; apelido: string; clube_id: number; posicao_id: number; pontuacao: number; scout: Scout };
+  const registros: Reg[] = [];
+  let rounds = 0;
+  for (let r = rodadaAtual - 1; r >= 1 && rounds < n; r--) {
+    const om = await opponentMap(r);
+    const info = om[adversarioId];
+    if (!info || info.mando !== mandoDoAdversario) continue;
+    const pts = await getPontuados(r).catch(() => null);
+    if (!pts) continue;
+    rounds++;
+    for (const [id, a] of Object.entries(pts.atletas ?? {})) {
+      if (a.clube_id !== info.adversario) continue;
+      registros.push({
+        rodada: r,
+        atleta_id: Number(id),
+        apelido: a.apelido,
+        clube_id: a.clube_id,
+        posicao_id: a.posicao_id,
+        pontuacao: a.pontuacao ?? 0,
+        scout: a.scout ?? {},
+      });
+    }
+  }
+
+  const gruposPosicao: Record<number, string[]> = {
+    2: ["LD", "LE"],
+    3: ["ZAD", "ZAE"],
+    4: ["VOL", "MCO", "MD", "ME"],
+    5: ["PD", "PE", "CA"],
+  };
+  const posicaoDaSub: Record<string, number> = {
+    LD: 2, LE: 2, ZAD: 3, ZAE: 3, VOL: 4, MCO: 4, MD: 4, ME: 4, PD: 5, PE: 5, CA: 5,
+  };
+
+  const todasSubs = [...Object.keys(posicaoDaSub), "GOL"];
+  const out: Record<SubKey, CedimentoSub> = {};
+
+  for (const sub of todasSubs) {
+    const posGeral = sub === "GOL" ? 1 : posicaoDaSub[sub]!;
+    let amostra = registros.filter(
+      (x) => (sub === "GOL" ? x.posicao_id === 1 : subs[String(x.atleta_id)] === sub),
+    );
+    let usouFallback = false;
+    if (sub !== "GOL" && amostra.length < AMOSTRA_MINIMA) {
+      // fallback: posição geral (agrupa todas as subcategorias da posição)
+      const grupo = gruposPosicao[posGeral] ?? [];
+      amostra = registros.filter(
+        (x) => x.posicao_id === posGeral || grupo.includes(subs[String(x.atleta_id)] ?? ""),
+      );
+      usouFallback = true;
+    }
+    const top5 = [...amostra].sort((a, b) => b.pontuacao - a.pontuacao).slice(0, 5);
+    out[sub] = {
+      sub,
+      amostra: amostra.length,
+      usouFallback,
+      gols: amostra.reduce((s, g) => s + (g.scout['G'] ?? 0), 0),
+      assistencias: amostra.reduce((s, g) => s + (g.scout['A'] ?? 0), 0),
+      desarmes: amostra.reduce((s, g) => s + (g.scout['DS'] ?? 0), 0),
+      defesas: amostra.reduce((s, g) => s + (g.scout['DE'] ?? 0), 0),
+      sgCedidos: amostra.filter((g) => (g.scout['SG'] ?? 0) > 0).length,
+      mediaCedida: top5.reduce((s, g) => s + g.pontuacao, 0) / 5,
+      jogos: amostra
+        .sort((a, b) => b.pontuacao - a.pontuacao)
+        .slice(0, 15)
+        .map(({ rodada, atleta_id, apelido, clube_id, pontuacao, scout }) => ({
+          rodada,
+          atleta_id,
+          apelido,
+          clube_id,
+          pontuacao,
+          scout,
+        })),
+    };
+  }
+  return out;
+}
