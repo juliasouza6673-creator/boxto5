@@ -34,7 +34,8 @@ export function fmt(n: number | null | undefined, d = 2) {
 }
 
 export function isEscalavel(a: Atleta) {
-  return a.status_id === 7 || a.status_id === 2 || a.status_id === 5;
+  // Nulo (5) é apenas informativo — nunca esconde o jogador.
+  return a.status_id !== 6 && a.status_id !== 3;
 }
 
 export function playerPhoto(a: Atleta | undefined) {

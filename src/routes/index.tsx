@@ -201,7 +201,7 @@ function Index() {
     const posSet =
       scope === "todos" ? [1, 2, 3, 4, 5, 6] : scope === "defesa" ? [1, 2, 3, 6] : scope === "meias" ? [4] : [5];
     const pool = atletas
-      .filter((a) => a.clube_id === clubeId && (a.status_id === 7 || a.status_id === 2))
+      .filter((a) => a.clube_id === clubeId && (a.status_id !== 6 && a.status_id !== 3))
       .sort((a, b) => b.media_num - a.media_num);
     update(board.id, (b) => {
       const usados = new Set<number>();
@@ -261,7 +261,7 @@ function Index() {
     if (!match) return [] as Array<{ pos: number; casa: Atleta[]; fora: Atleta[] }>;
     const sel = (clubeId: number, pos: number) =>
       atletas
-        .filter((a) => a.clube_id === clubeId && a.posicao_id === pos && (a.status_id === 7 || a.status_id === 2))
+        .filter((a) => a.clube_id === clubeId && a.posicao_id === pos && (a.status_id !== 6 && a.status_id !== 3))
         .sort((x, y) => y.media_num - x.media_num);
     return [1, 2, 3, 4, 5, 6].map((pos) => ({
       pos,

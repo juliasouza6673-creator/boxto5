@@ -235,7 +235,7 @@ export function PlayerModal({ atleta, atletas, clubes, onOpenPlayer, onSell, onA
     return atletas
       .filter((a) => a.clube_id === ok.adversario)
       .filter((a) => ok.enfrentaPosicoes.includes(a.posicao_id))
-      .filter((a) => a.status_id === 7 || a.status_id === 2)
+      .filter((a) => a.status_id !== 6 && a.status_id !== 3)
       .sort((a, b) => b.media_num - a.media_num)
       .slice(0, 5);
   }, [atletas, ok]);

@@ -153,8 +153,12 @@ export const getExpectedPoints = createServerFn({ method: "POST" })
   });
 
 
-export const getBestOfRound = createServerFn({ method: "GET" }).handler(async () => {
+export const getBestOfRound = createServerFn({ method: "POST" })
+  .inputValidator((d: { subs?: Record<string, string> } | undefined) => d ?? {})
+  .handler(async ({ data }) => {
   const m = await import("./cartola-analysis.server");
+  const subs = data.subs ?? {};
+  const subCache = new Map<string, Awaited<ReturnType<typeof m.cedimentoPorSubcategoria>>>();
   try {
     const status = await m.getStatus();
     const rodada = status.rodada_atual ?? 1;
@@ -163,7 +167,7 @@ export const getBestOfRound = createServerFn({ method: "GET" }).handler(async ()
     const byPos: Record<string, BestPick[]> = {};
 
     const candidatos = mercado.atletas
-      .filter((a) => a.status_id === 7 || a.status_id === 2)
+      .filter((a) => a.status_id !== 6 && a.status_id !== 3)
       .filter((a) => om[a.clube_id])
       .filter((a) => (a.jogos_num ?? 0) >= 1);
 
@@ -181,6 +185,30 @@ export const getBestOfRound = createServerFn({ method: "GET" }).handler(async ()
           ced = await m.cedimentos(info.adversario, posId, info.mando, rodada, 5);
           cedCache.set(key, ced);
         }
+        // Prioriza cedimento da subcategoria do atleta; cai para a posição geral quando faltar amostra.
+        const sub = posId === 1 ? "GOL" : subs[String(a.atleta_id)];
+        let cedSub: (typeof ced) | null = null;
+        if (sub) {
+          const mandoAdv = info.mando === "casa" ? "fora" : "casa";
+          const kSub = `${info.adversario}-${mandoAdv}`;
+          let mapa = subCache.get(kSub);
+          if (!mapa) {
+            mapa = await m.cedimentoPorSubcategoria(info.adversario, mandoAdv, rodada, subs);
+            subCache.set(kSub, mapa);
+          }
+          const cs = mapa[sub];
+          if (cs && cs.amostra > 0) {
+            cedSub = {
+              ...ced,
+              mediaCedida: cs.mediaCedida,
+              golsCedidos: cs.gols,
+              desarmesCedidos: cs.desarmes,
+              defesasCedidas: cs.defesas,
+            };
+          }
+        }
+        if (cedSub) ced = cedSub;
+
         const jogos = a.jogos_num ?? 0;
         const peso = Math.min(1, jogos / 8);
         const media = a.media_num ?? 0;
