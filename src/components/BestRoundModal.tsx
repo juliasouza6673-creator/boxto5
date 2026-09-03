@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getBestOfRound } from "@/lib/cartola.functions";
+import { useSubcategorias } from "@/lib/subcategorias";
 import type { Atleta, Clube } from "@/lib/cartola-types";
 import { POS_NOME } from "@/lib/cartola-types";
 import { escudo, fmt } from "@/lib/cartola-ui";
@@ -15,10 +16,11 @@ type Props = {
 
 export function BestRoundModal({ clubes, atletas, onOpenPlayer, onClose }: Props) {
   const fn = useServerFn(getBestOfRound);
+  const { data: subs } = useSubcategorias();
   const [expandido, setExpandido] = useState<Record<string, boolean>>({});
   const { data, isLoading } = useQuery({
-    queryKey: ["best-of-round"],
-    queryFn: () => fn(),
+    queryKey: ["best-of-round", subs ? Object.keys(subs).length : 0],
+    queryFn: () => fn({ data: { subs: subs ?? {} } }),
     staleTime: 15 * 60_000,
   });
 
