@@ -320,7 +320,7 @@ export type CedimentoSub = {
   defesas: number;
   sgCedidos: number;
   mediaCedida: number;
-  jogos: Array<{ rodada: number; atleta_id?: number; apelido: string; clube_id: number; pontuacao: number; scout: Scout }>;
+  jogos: Array<{ rodada: number; atleta_id: number | undefined; apelido: string; clube_id: number; pontuacao: number; scout: Scout }>;
 };
 
 const AMOSTRA_MINIMA = 3;
