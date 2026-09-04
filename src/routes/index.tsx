@@ -18,6 +18,12 @@ import { AuthDialog } from "@/components/AuthDialog";
 import { AdvancedTools, type FillScope } from "@/components/AdvancedTools";
 import { PlayerSearch } from "@/components/PlayerSearch";
 import { computeMNO, liveValuation } from "@/lib/mno";
+import { CedimentosMap } from "@/components/CedimentosMap";
+import { PlayersCompare } from "@/components/PlayersCompare";
+import { SubcategoriaAdmin } from "@/components/SubcategoriaAdmin";
+import { NewsFeed } from "@/components/NewsFeed";
+import { ProbableLineup } from "@/components/ProbableLineups";
+import { useIsAdmin, useSubcategorias } from "@/lib/subcategorias";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -43,7 +49,7 @@ export const Route = createFileRoute("/")({
 const HINT_KEY = "taticspro.hint.playerclick";
 const FAV_KEY = "boxto5.favoritos";
 
-type TabId = "confrontos" | "campinho" | "jogadores" | "noticias";
+type TabId = "confrontos" | "campinho" | "jogadores" | "mapa" | "noticias";
 
 function Countdown({ timestamp }: { timestamp: number }) {
   const [now, setNow] = useState<number | null>(null);
@@ -101,6 +107,9 @@ function Index() {
   const [filtroNome, setFiltroNome] = useState("");
   const [soFavoritos, setSoFavoritos] = useState(false);
   const [favoritos, setFavoritos] = useState<number[]>([]);
+  const [subTab, setSubTab] = useState<"atletas" | "comparativo">("atletas");
+  const { data: subs } = useSubcategorias();
+  const { data: isAdmin } = useIsAdmin(userId ?? null);
 
   useEffect(() => {
     try {
@@ -343,6 +352,7 @@ function Index() {
     { id: "confrontos", label: "Confrontos" },
     { id: "campinho", label: "Campinho" },
     { id: "jogadores", label: "Jogadores" },
+    { id: "mapa", label: "Mapa de Cedimentos" },
     { id: "noticias", label: "Notícias" },
   ];
 
@@ -598,6 +608,24 @@ function Index() {
                     );
                   })}
                 </div>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <ProbableLineup
+                    rodada={rodadaAtual}
+                    clubeId={match.clube_casa_id}
+                    clubes={clubes}
+                    atletas={atletas}
+                    isAdmin={!!isAdmin}
+                    onOpenPlayer={setAberto}
+                  />
+                  <ProbableLineup
+                    rodada={rodadaAtual}
+                    clubeId={match.clube_visitante_id}
+                    clubes={clubes}
+                    atletas={atletas}
+                    isAdmin={!!isAdmin}
+                    onOpenPlayer={setAberto}
+                  />
+                </div>
               </article>
             )}
           </div>
@@ -687,6 +715,26 @@ function Index() {
 
       {data?.ok && tab === "jogadores" && (
         <section className="space-y-3">
+          <div className="flex gap-4 border-b-2 border-border">
+            {(["atletas", "comparativo"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setSubTab(t)}
+                className={`-mb-0.5 border-b-4 px-1 pb-1.5 font-condensed text-xs uppercase ${subTab === t ? "border-primary" : "border-transparent text-muted-foreground"}`}
+              >
+                {t === "atletas" ? "Atletas" : "Comparativo"}
+              </button>
+            ))}
+          </div>
+
+          {isAdmin && <SubcategoriaAdmin atletas={atletas} />}
+
+          {subTab === "comparativo" && (
+            <PlayersCompare favoritos={favoritos} atletas={atletas} clubes={clubes} onOpenPlayer={setAberto} />
+          )}
+
+          {subTab === "atletas" && (
+          <>
           <div className="brutal p-3">
             <div className="flex flex-wrap gap-2">
               <input
@@ -737,7 +785,9 @@ function Index() {
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-xs font-bold">{a.apelido}</span>
                     <span className="block text-[10px] text-muted-foreground">
-                      {POS_ABREV[a.posicao_id]} · méd {fmt(a.media_num, 1)} · C$ {fmt(a.preco_num, 2)}
+                      {POS_ABREV[a.posicao_id]}
+                      {subs?.[String(a.atleta_id)] ? ` (${subs[String(a.atleta_id)]})` : ""} · méd{" "}
+                      {fmt(a.media_num, 1)} · C$ {fmt(a.preco_num, 2)}
                     </span>
                   </span>
                 </button>
@@ -754,30 +804,14 @@ function Index() {
               <p className="text-sm text-muted-foreground">Nenhum jogador encontrado.</p>
             )}
           </div>
+          </>
+          )}
         </section>
       )}
 
-      {data?.ok && tab === "noticias" && (
-        <section className="grid gap-3 sm:grid-cols-2">
-          {noticias.map((n) => (
-            <a
-              key={n.link}
-              href={n.link}
-              target="_blank"
-              rel="noreferrer"
-              className="brutal p-3 hover:bg-accent"
-            >
-              <p className="font-condensed text-sm uppercase leading-snug">{n.titulo}</p>
-              {n.data && (
-                <p className="mt-1 text-[10px] text-muted-foreground">
-                  {new Date(n.data).toLocaleDateString("pt-BR")}
-                </p>
-              )}
-            </a>
-          ))}
-          {!noticias.length && <p className="text-sm text-muted-foreground">Sem notícias no momento.</p>}
-        </section>
-      )}
+      {data?.ok && tab === "mapa" && <CedimentosMap clubes={clubes} />}
+
+      {data?.ok && tab === "noticias" && <NewsFeed noticias={noticias} clubes={clubes} />}
 
       {picker && board && (
         <PlayerPicker
