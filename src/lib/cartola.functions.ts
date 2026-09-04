@@ -68,7 +68,7 @@ export const getMercadoAtletas = createServerFn({ method: "GET" }).handler(async
 });
 
 export const getPlayerAnalysis = createServerFn({ method: "POST" })
-  .inputValidator((d: { atletaId: number; clubeId: number; posicaoId: number }) => d)
+  .inputValidator((d: { atletaId: number; clubeId: number; posicaoId: number; sub?: string; subs?: Record<string, string> }) => d)
   .handler(async ({ data }) => {
     const m = await import("./cartola-analysis.server");
     try {
@@ -93,6 +93,25 @@ export const getPlayerAnalysis = createServerFn({ method: "POST" })
           ? await m.playerMandoHistory(data.atletaId, "casa", rodada, 5)
           : [];
       const hist = histRaw.length ? histRaw : fallbackCasa;
+
+      // Cedimento priorizando a subcategoria do atleta (fallback: posição geral).
+      let cedFinal = ced;
+      const sub = data.posicaoId === 1 ? "GOL" : data.sub;
+      if (sub && data.subs) {
+        const mapa = await m.cedimentoPorSubcategoria(info.adversario, contrario, rodada, data.subs);
+        const cs = mapa[sub];
+        if (cs && cs.amostra > 0 && !cs.usouFallback) {
+          cedFinal = {
+            ...ced,
+            mediaCedida: cs.mediaCedida,
+            golsCedidos: cs.gols,
+            assistenciasCedidas: cs.assistencias,
+            desarmesCedidos: cs.desarmes,
+            defesasCedidas: cs.defesas,
+            amostra: cs.amostra,
+          };
+        }
+      }
       const mediaMando = hist.length ? hist.reduce((s, g) => s + g.pontuacao, 0) / 5 : 0;
       return {
         ok: true as const,
@@ -106,12 +125,12 @@ export const getPlayerAnalysis = createServerFn({ method: "POST" })
         ultimasRodadas,
         usouFallbackCasa: !histRaw.length && fallbackCasa.length > 0,
         mediaMando,
-        cedimentos: ced,
+        cedimentos: cedFinal,
         minutagem: minut,
         formTime,
         formAdversario: formAdv,
-        pontuacaoEsperada: mediaMando + ced.mediaCedida,
-        confianca: Math.min(1, (hist.length + ced.amostra / 3) / 8),
+        pontuacaoEsperada: mediaMando + cedFinal.mediaCedida,
+        confianca: Math.min(1, (hist.length + cedFinal.amostra / 3) / 8),
         enfrentaPosicoes: m.enfrentaPosicoes(data.posicaoId),
       };
     } catch (err) {
