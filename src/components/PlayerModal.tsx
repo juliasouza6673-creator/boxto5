@@ -75,12 +75,22 @@ function TeamFormBox({
 
 function useAnalysis(a: Atleta | null) {
   const fn = useServerFn(getPlayerAnalysis);
+  const { data: subs } = useSubcategorias();
+  const sub = a ? (a.posicao_id === 1 ? "GOL" : subs?.[String(a.atleta_id)]) : undefined;
   return useQuery({
-    queryKey: ["analysis", a?.atleta_id],
+    queryKey: ["analysis", a?.atleta_id, sub ?? ""],
     enabled: !!a,
     staleTime: 10 * 60_000,
     queryFn: () =>
-      fn({ data: { atletaId: a!.atleta_id, clubeId: a!.clube_id, posicaoId: a!.posicao_id } }),
+      fn({
+        data: {
+          atletaId: a!.atleta_id,
+          clubeId: a!.clube_id,
+          posicaoId: a!.posicao_id,
+          ...(sub ? { sub } : {}),
+          ...(subs ? { subs } : {}),
+        },
+      }),
   });
 }
 
