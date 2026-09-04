@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { getPlayerAnalysis } from "@/lib/cartola.functions";
 import type { Atleta, Clube, Scout } from "@/lib/cartola-types";
 import { POS_NOME, STATUS_NOME } from "@/lib/cartola-types";
+import { ENFRENTA, useSubcategorias } from "@/lib/subcategorias";
 import { escudo, fmt, isScoutNegative, playerPhoto, statusBorderClass } from "@/lib/cartola-ui";
 import { ScoreChart } from "@/components/ScoreChart";
 import { computeMNO } from "@/lib/mno";
@@ -227,18 +228,31 @@ export function PlayerModal({ atleta, atletas, clubes, onOpenPlayer, onSell, onA
   }, [onClose]);
 
   const ok = analysis?.ok && !analysis.semJogo ? analysis : null;
+  const { data: subs } = useSubcategorias();
   const clube = clubes[String(atleta.clube_id)];
   const adversario = ok ? clubes[String(ok.adversario)] : undefined;
 
+  const minhaSub = atleta.posicao_id === 1 ? "GOL" : subs?.[String(atleta.atleta_id)];
+  const subsEnfrentadas = minhaSub ? (ENFRENTA[minhaSub] ?? []) : [];
+
   const enfrenta = useMemo(() => {
     if (!ok) return [];
+    const porSub = subsEnfrentadas.length
+      ? atletas
+          .filter((a) => a.clube_id === ok.adversario)
+          .filter((a) => subsEnfrentadas.includes((subs?.[String(a.atleta_id)] ?? "") as never))
+          .filter((a) => a.status_id !== 6 && a.status_id !== 3)
+          .sort((a, b) => b.media_num - a.media_num)
+          .slice(0, 5)
+      : [];
+    if (porSub.length) return porSub;
     return atletas
       .filter((a) => a.clube_id === ok.adversario)
       .filter((a) => ok.enfrentaPosicoes.includes(a.posicao_id))
       .filter((a) => a.status_id !== 6 && a.status_id !== 3)
       .sort((a, b) => b.media_num - a.media_num)
       .slice(0, 5);
-  }, [atletas, ok]);
+  }, [atletas, ok, subs, subsEnfrentadas]);
 
   const recomendado = ok ? ok.cedimentos.mediaCedida >= Math.max(2, ok.mediaMando * 0.8) : false;
 
@@ -280,6 +294,9 @@ export function PlayerModal({ atleta, atletas, clubes, onOpenPlayer, onSell, onA
           <div className="min-w-0 flex-1">
             <h3 className="flex flex-wrap items-baseline gap-2 font-display text-xl leading-tight tracking-wide">
               {atleta.apelido}
+              {minhaSub && minhaSub !== "GOL" && (
+                <span className="brutal-sm bg-primary px-1.5 py-0.5 text-[10px] text-primary-foreground">{minhaSub}</span>
+              )}
               <span className="rounded bg-black px-1.5 py-0.5 text-xs font-bold text-white">
                 C$ {fmt(atleta.preco_num, 2)}
               </span>
