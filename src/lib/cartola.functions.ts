@@ -439,3 +439,18 @@ export const getCedimentosMapa = createServerFn({ method: "POST" })
       return { ok: false as const, error: (err as Error).message };
     }
   });
+
+/** Snapshot da liga: média no mando, scouts e cedimento por subcategoria de todos os atletas. */
+export const getTabelaJogadores = createServerFn({ method: "POST" })
+  .inputValidator((d: { subs?: Record<string, string> } | undefined) => d ?? {})
+  .handler(async ({ data }) => {
+    const m = await import("./cartola-analysis.server");
+    try {
+      const status = await m.getStatus();
+      const rodada = status.rodada_atual ?? 1;
+      const snap = await m.ligaSnapshot(rodada, data.subs ?? {}, 5);
+      return { ok: true as const, ...snap };
+    } catch (err) {
+      return { ok: false as const, error: (err as Error).message };
+    }
+  });
