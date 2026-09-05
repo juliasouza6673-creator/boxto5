@@ -94,15 +94,17 @@ export const getPlayerAnalysis = createServerFn({ method: "POST" })
           : [];
       const hist = histRaw.length ? histRaw : fallbackCasa;
 
-      // Cedimento priorizando a subcategoria do atleta (fallback: posição geral).
+      // Cedimento sempre pela subcategoria do atleta (cai para a posição geral só sem amostra).
       let cedFinal = ced;
+      let cedSubInfo: { usouFallback: boolean; mediaCedidaGeral: number } | null = null;
       const sub = data.posicaoId === 1 ? "GOL" : data.sub;
       if (sub && data.subs) {
         const mapa = await m.cedimentoPorSubcategoria(info.adversario, contrario, rodada, data.subs);
         const cs = mapa[sub];
-        if (cs && cs.amostra > 0 && !cs.usouFallback) {
+        if (cs && cs.amostra > 0) {
           cedFinal = {
             ...ced,
+            jogos: cs.jogos.map((j) => ({ rodada: j.rodada, pontuacao: j.pontuacao, scout: j.scout, apelido: j.apelido, clube_id: j.clube_id })),
             mediaCedida: cs.mediaCedida,
             golsCedidos: cs.gols,
             assistenciasCedidas: cs.assistencias,
@@ -110,8 +112,10 @@ export const getPlayerAnalysis = createServerFn({ method: "POST" })
             defesasCedidas: cs.defesas,
             amostra: cs.amostra,
           };
+          cedSubInfo = { usouFallback: cs.usouFallback, mediaCedidaGeral: cs.mediaCedidaGeral };
         }
       }
+
       const mediaMando = hist.length ? hist.reduce((s, g) => s + g.pontuacao, 0) / 5 : 0;
       return {
         ok: true as const,
@@ -126,6 +130,8 @@ export const getPlayerAnalysis = createServerFn({ method: "POST" })
         usouFallbackCasa: !histRaw.length && fallbackCasa.length > 0,
         mediaMando,
         cedimentos: cedFinal,
+        cedimentoSub: cedSubInfo ? { sub, ...cedSubInfo } : null,
+
         minutagem: minut,
         formTime,
         formAdversario: formAdv,
@@ -429,6 +435,21 @@ export const getCedimentosMapa = createServerFn({ method: "POST" })
       const mando = info?.mando ?? "casa";
       const mapa = await cedimentoPorSubcategoria(data.adversario, mando, rodada, data.subs);
       return { ok: true as const, rodada, mando, adversarioProximo: info?.adversario ?? null, mapa };
+    } catch (err) {
+      return { ok: false as const, error: (err as Error).message };
+    }
+  });
+
+/** Snapshot da liga: média no mando, scouts e cedimento por subcategoria de todos os atletas. */
+export const getTabelaJogadores = createServerFn({ method: "POST" })
+  .inputValidator((d: { subs?: Record<string, string> } | undefined) => d ?? {})
+  .handler(async ({ data }) => {
+    const m = await import("./cartola-analysis.server");
+    try {
+      const status = await m.getStatus();
+      const rodada = status.rodada_atual ?? 1;
+      const snap = await m.ligaSnapshot(rodada, data.subs ?? {}, 5);
+      return { ok: true as const, ...snap };
     } catch (err) {
       return { ok: false as const, error: (err as Error).message };
     }

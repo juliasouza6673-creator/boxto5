@@ -35,6 +35,33 @@ export type Database = {
         }
         Relationships: []
       }
+      player_status_overrides: {
+        Row: {
+          atleta_id: number
+          created_at: string
+          nota: string | null
+          status_id: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          atleta_id: number
+          created_at?: string
+          nota?: string | null
+          status_id: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          atleta_id?: number
+          created_at?: string
+          nota?: string | null
+          status_id?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       player_subcategories: {
         Row: {
           atleta_id: number
