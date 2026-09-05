@@ -130,6 +130,8 @@ export const getPlayerAnalysis = createServerFn({ method: "POST" })
         usouFallbackCasa: !histRaw.length && fallbackCasa.length > 0,
         mediaMando,
         cedimentos: cedFinal,
+        cedimentoSub: cedSubInfo ? { sub, ...cedSubInfo } : null,
+
         minutagem: minut,
         formTime,
         formAdversario: formAdv,
