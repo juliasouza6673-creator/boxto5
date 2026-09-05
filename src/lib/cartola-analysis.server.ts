@@ -376,21 +376,21 @@ export async function cedimentoPorSubcategoria(
   const todasSubs = [...Object.keys(posicaoDaSub), "GOL"];
   const out: Record<SubKey, CedimentoSub> = {};
 
+  const mediaTop5 = (arr: Reg[]) =>
+    [...arr].sort((a, b) => b.pontuacao - a.pontuacao).slice(0, 5).reduce((s, g) => s + g.pontuacao, 0) / 5;
+
   for (const sub of todasSubs) {
     const posGeral = sub === "GOL" ? 1 : posicaoDaSub[sub]!;
-    let amostra = registros.filter(
+    const grupo = gruposPosicao[posGeral] ?? [];
+    const geral = registros.filter(
+      (x) => x.posicao_id === posGeral || grupo.includes(subs[String(x.atleta_id)] ?? ""),
+    );
+    const porSub = registros.filter(
       (x) => (sub === "GOL" ? x.posicao_id === 1 : subs[String(x.atleta_id)] === sub),
     );
-    let usouFallback = false;
-    if (sub !== "GOL" && amostra.length < AMOSTRA_MINIMA) {
-      // fallback: posição geral (agrupa todas as subcategorias da posição)
-      const grupo = gruposPosicao[posGeral] ?? [];
-      amostra = registros.filter(
-        (x) => x.posicao_id === posGeral || grupo.includes(subs[String(x.atleta_id)] ?? ""),
-      );
-      usouFallback = true;
-    }
-    const top5 = [...amostra].sort((a, b) => b.pontuacao - a.pontuacao).slice(0, 5);
+    // Sempre respeita a subcategoria; só cai para a posição geral sem amostra suficiente.
+    const usouFallback = sub !== "GOL" && porSub.length < AMOSTRA_MINIMA;
+    const amostra = usouFallback ? geral : porSub;
     out[sub] = {
       sub,
       amostra: amostra.length,
@@ -400,10 +400,11 @@ export async function cedimentoPorSubcategoria(
       desarmes: amostra.reduce((s, g) => s + (g.scout['DS'] ?? 0), 0),
       defesas: amostra.reduce((s, g) => s + (g.scout['DE'] ?? 0), 0),
       sgCedidos: amostra.filter((g) => (g.scout['SG'] ?? 0) > 0).length,
-      mediaCedida: top5.reduce((s, g) => s + g.pontuacao, 0) / 5,
+      mediaCedida: mediaTop5(amostra),
+      mediaCedidaGeral: mediaTop5(geral),
       jogos: amostra
-        .sort((a, b) => b.pontuacao - a.pontuacao)
-        .slice(0, 15)
+        .sort((a, b) => b.rodada - a.rodada || b.pontuacao - a.pontuacao)
+        .slice(0, 20)
         .map(({ rodada, atleta_id, apelido, clube_id, pontuacao, scout }) => ({
           rodada,
           atleta_id,
@@ -416,3 +417,143 @@ export async function cedimentoPorSubcategoria(
   }
   return out;
 }
+
+/* ---------------- Snapshot da liga (tabela de jogadores) ---------------- */
+
+export type JogadorSnapshot = {
+  jogos: number;
+  mediaMando: number;
+  gols: number;
+  assistencias: number;
+  desarmes: number;
+  defesas: number;
+  ultimas: Array<{ rodada: number; pontuacao: number; scout: Scout }>;
+};
+
+export type LigaSnapshot = {
+  rodada: number;
+  mando: Record<string, "casa" | "fora">;
+  adversario: Record<string, number>;
+  jogadores: Record<string, JogadorSnapshot>;
+  /** chave `${clubeAdversario}-${sub}` -> média cedida na janela de 5 jogos do mando */
+  cedidas: Record<string, { mediaCedida: number; amostra: number; usouFallback: boolean }>;
+};
+
+/**
+ * Uma passada única pelas últimas rodadas para produzir:
+ * média/scouts dos jogadores no mando da próxima rodada e cedimento por subcategoria.
+ */
+export async function ligaSnapshot(
+  rodadaAtual: number,
+  subs: Record<string, string>,
+  janela = 5,
+  maxRodadas = 16,
+): Promise<LigaSnapshot> {
+  type Row = {
+    rodada: number;
+    atleta_id: number;
+    clube_id: number;
+    posicao_id: number;
+    pontuacao: number;
+    scout: Scout;
+    mando: "casa" | "fora";
+    adversario: number;
+  };
+  const rows: Row[] = [];
+  const rodadasLidas: number[] = [];
+  for (let r = rodadaAtual - 1; r >= 1 && rodadasLidas.length < maxRodadas; r--) {
+    const [pts, om] = await Promise.all([getPontuados(r).catch(() => null), opponentMap(r)]);
+    if (!pts || !Object.keys(om).length) continue;
+    rodadasLidas.push(r);
+    for (const [id, a] of Object.entries(pts.atletas ?? {})) {
+      const info = om[a.clube_id];
+      if (!info) continue;
+      rows.push({
+        rodada: r,
+        atleta_id: Number(id),
+        clube_id: a.clube_id,
+        posicao_id: a.posicao_id,
+        pontuacao: a.pontuacao ?? 0,
+        scout: a.scout ?? {},
+        mando: info.mando,
+        adversario: info.adversario,
+      });
+    }
+  }
+
+  const om = await opponentMap(rodadaAtual);
+  const mando: Record<string, "casa" | "fora"> = {};
+  const adversario: Record<string, number> = {};
+  for (const [clube, info] of Object.entries(om)) {
+    mando[clube] = info.mando;
+    adversario[clube] = info.adversario;
+  }
+
+  // Jogadores: últimas `janela` partidas no mando da próxima rodada
+  const porAtleta = new Map<number, Row[]>();
+  for (const row of rows) {
+    const m = mando[String(row.clube_id)];
+    if (!m || row.mando !== m) continue;
+    const arr = porAtleta.get(row.atleta_id) ?? [];
+    arr.push(row);
+    porAtleta.set(row.atleta_id, arr);
+  }
+  const jogadores: Record<string, JogadorSnapshot> = {};
+  for (const [id, arr] of porAtleta) {
+    const ultimos = arr.sort((a, b) => b.rodada - a.rodada).slice(0, janela);
+    const soma = (k: string) => ultimos.reduce((s, g) => s + (g.scout[k] ?? 0), 0);
+    jogadores[String(id)] = {
+      jogos: ultimos.length,
+      mediaMando: ultimos.length ? ultimos.reduce((s, g) => s + g.pontuacao, 0) / ultimos.length : 0,
+      gols: soma("G"),
+      assistencias: soma("A"),
+      desarmes: soma("DS"),
+      defesas: soma("DE"),
+      ultimas: ultimos.map((g) => ({ rodada: g.rodada, pontuacao: g.pontuacao, scout: g.scout })),
+    };
+  }
+
+  // Cedimentos por clube adversário e subcategoria
+  const gruposPosicao: Record<number, string[]> = {
+    2: ["LD", "LE"],
+    3: ["ZAD", "ZAE"],
+    4: ["VOL", "MCO", "MD", "ME"],
+    5: ["PD", "PE", "CA"],
+  };
+  const posicaoDaSub: Record<string, number> = {
+    LD: 2, LE: 2, ZAD: 3, ZAE: 3, VOL: 4, MCO: 4, MD: 4, ME: 4, PD: 5, PE: 5, CA: 5,
+  };
+  const cedidas: Record<string, { mediaCedida: number; amostra: number; usouFallback: boolean }> = {};
+  for (const clubeStr of Object.keys(mando)) {
+    const clube = Number(clubeStr);
+    const mandoAdv = mando[clubeStr] === "casa" ? "fora" : "casa";
+    // rodadas em que esse clube jogou nesse mando (as 5 mais recentes)
+    const rodadasClube = [
+      ...new Set(rows.filter((x) => x.adversario === clube && x.mando !== mandoAdv).map((x) => x.rodada)),
+    ]
+      .sort((a, b) => b - a)
+      .slice(0, janela);
+    const contra = rows.filter((x) => x.adversario === clube && rodadasClube.includes(x.rodada));
+    for (const sub of [...Object.keys(posicaoDaSub), "GOL"]) {
+      const posGeral = sub === "GOL" ? 1 : posicaoDaSub[sub]!;
+      const grupo = gruposPosicao[posGeral] ?? [];
+      const geral = contra.filter(
+        (x) => x.posicao_id === posGeral || grupo.includes(subs[String(x.atleta_id)] ?? ""),
+      );
+      const porSub = contra.filter((x) =>
+        sub === "GOL" ? x.posicao_id === 1 : subs[String(x.atleta_id)] === sub,
+      );
+      const usouFallback = sub !== "GOL" && porSub.length < AMOSTRA_MINIMA;
+      const amostra = usouFallback ? geral : porSub;
+      cedidas[`${clube}-${sub}`] = {
+        mediaCedida:
+          [...amostra].sort((a, b) => b.pontuacao - a.pontuacao).slice(0, 5).reduce((s, g) => s + g.pontuacao, 0) / 5,
+        amostra: amostra.length,
+        usouFallback,
+      };
+    }
+  }
+
+  return { rodada: rodadaAtual, mando, adversario, jogadores, cedidas };
+}
+
