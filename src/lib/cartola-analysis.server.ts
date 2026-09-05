@@ -320,8 +320,11 @@ export type CedimentoSub = {
   defesas: number;
   sgCedidos: number;
   mediaCedida: number;
+  /** Média cedida considerando a posição geral (para comparação com a subcategoria). */
+  mediaCedidaGeral: number;
   jogos: Array<{ rodada: number; atleta_id: number | undefined; apelido: string; clube_id: number; pontuacao: number; scout: Scout }>;
 };
+
 
 const AMOSTRA_MINIMA = 3;
 
