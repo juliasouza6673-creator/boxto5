@@ -20,6 +20,7 @@ type Props = {
   rodada: number;
   parciais: Record<string, number>;
   cedidas: Record<string, number>;
+  mediasMando: Record<string, number>;
   onChange: (patch: (b: Board) => Board) => void;
   onSlotClick: (slot: SlotState) => void;
   onBenchClick: (slot: SlotState) => void;
@@ -66,6 +67,7 @@ export function Pitch({
   rodada,
   parciais,
   cedidas,
+  mediasMando,
   onChange,
   onSlotClick,
   onBenchClick,
@@ -81,7 +83,22 @@ export function Pitch({
   const [width, setWidth] = useState(12);
   const [drawOpen, setDrawOpen] = useState(false);
   const [redoStack, setRedoStack] = useState<Stroke[]>([]);
-  const [mcOn, setMcOn] = useState(false);
+  const [metrica, setMetrica] = useState<"preco" | "MC" | "MM" | "M">("preco");
+  const [escolhaPos, setEscolhaPos] = useState(false);
+  const metricaTexto = (a: Atleta) => {
+    const id = String(a.atleta_id);
+    if (metrica === "MC") return cedidas[id] !== undefined ? `MC ${fmt(cedidas[id], 1)}` : "MC —";
+    if (metrica === "MM") return mediasMando[id] !== undefined ? `MM ${fmt(mediasMando[id], 1)}` : "MM —";
+    if (metrica === "M") return `M ${fmt(a.media_num, 1)}`;
+    return `C$ ${fmt(a.preco_num, 1)}`;
+  };
+  const addExtra = (pos: number) => {
+    setEscolhaPos(false);
+    onChange((b) => ({
+      ...b,
+      slots: [...b.slots, { id: crypto.randomUUID(), pos, x: 50, y: 50, atletaId: null, extra: true }],
+    }));
+  };
   const drawing = useRef<string | null>(null);
   const dragId = useRef<string | null>(null);
 
@@ -224,17 +241,26 @@ export function Pitch({
                 {b2.i}
               </button>
             ))}
-            <button
-              title="MC — mostrar média cedida no lugar do preço"
-              aria-label="Média cedida"
-              onClick={(e) => {
-                e.stopPropagation();
-                setMcOn((v) => !v);
-              }}
-              className={`h-7 rounded-md border px-1.5 font-display text-[10px] ${mcOn ? "border-accent text-accent" : "border-border text-muted-foreground"}`}
-            >
-              MC
-            </button>
+            {(
+              [
+                ["MC", "Média cedida pelo adversário"],
+                ["MM", "Média do jogador no mando"],
+                ["M", "Média geral"],
+              ] as const
+            ).map(([k, t]) => (
+              <button
+                key={k}
+                title={`${k} — ${t}`}
+                aria-label={t}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMetrica((v) => (v === k ? "preco" : k));
+                }}
+                className={`h-7 rounded-md border px-1.5 font-display text-[10px] ${metrica === k ? "border-accent bg-accent text-accent-foreground" : "border-border text-muted-foreground"}`}
+              >
+                {k}
+              </button>
+            ))}
           </div>
         <button
           onClick={onDelete}
@@ -438,11 +464,7 @@ export function Pitch({
                 </span>
                 {a && (
                   <span className="rounded bg-black px-1 text-[9px] font-bold text-white">
-                    {!mercadoAberto
-                      ? `${fmt(pts, 1)} pts`
-                      : mcOn
-                        ? `MC ${fmt(cedidas[String(a.atleta_id)] ?? 0, 1)}`
-                        : `C$ ${fmt(a.preco_num, 1)}`}
+                    {!mercadoAberto ? `${fmt(pts, 1)} pts` : metricaTexto(a)}
                   </span>
                 )}
                 {a && val && (
