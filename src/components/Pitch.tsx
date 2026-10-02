@@ -556,6 +556,7 @@ export function Pitch({
             C$ {fmt(valorTotal, 2)}
           </span>
         </div>
+        </div>
         <aside className="brutal-sm bg-panel-2 p-2 text-[11px]">
           <div className="mb-2 flex justify-between font-condensed uppercase">
             <span>Escalação · {board.formacao}</span>
