@@ -272,7 +272,8 @@ export function Pitch({
         </button>
       </div>
 
-      <div>
+      <div className="grid gap-3 lg:grid-cols-[1fr_260px]">
+        <div>
 
 
           {drawOpen && (
@@ -479,20 +480,33 @@ export function Pitch({
             );
           })}
 
-          <button
-            onClick={() =>
-              onChange((b) => ({
-                ...b,
-                slots: [
-                  ...b.slots,
-                  { id: crypto.randomUUID(), pos: 4, x: 50, y: 50, atletaId: null, extra: true },
-                ],
-              }))
-            }
-            className="absolute right-2 top-2 rounded-lg border border-primary/30 bg-background/50 px-2 py-0.5 text-[10px]"
-          >
-            + Jogador
-          </button>
+          <div className="absolute right-2 top-2 flex flex-col items-end gap-1" onPointerDown={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setEscolhaPos((v) => !v)}
+              className="rounded-lg border border-primary/30 bg-background/50 px-2 py-0.5 text-[10px]"
+            >
+              + Jogador
+            </button>
+            {escolhaPos && (
+              <div className="flex flex-col gap-1 rounded-lg border border-border bg-panel p-1">
+                {[
+                  [1, "Goleiro"],
+                  [3, "Zagueiro"],
+                  [2, "Lateral"],
+                  [4, "Meia"],
+                  [5, "Atacante"],
+                ].map(([p, n]) => (
+                  <button
+                    key={p}
+                    onClick={() => addExtra(p as number)}
+                    className="rounded px-2 py-0.5 text-left text-[10px] hover:bg-accent"
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           <div className="absolute bottom-2 left-2 flex flex-col items-start gap-1">
             <span className="rounded-lg border border-success/40 bg-background/70 px-2 py-0.5 font-display text-[11px] text-success">
@@ -542,6 +556,30 @@ export function Pitch({
             C$ {fmt(valorTotal, 2)}
           </span>
         </div>
+        <aside className="brutal-sm bg-panel-2 p-2 text-[11px]">
+          <div className="mb-2 flex justify-between font-condensed uppercase">
+            <span>Escalação · {board.formacao}</span>
+            <span className="text-primary">C$ {fmt(valorTotal, 2)}</span>
+          </div>
+          <ul className="space-y-1">
+            {[...board.slots].sort((x, y) => x.pos - y.pos).map((slot) => {
+              const a = slot.atletaId ? atletasById.get(slot.atletaId) : undefined;
+              return (
+                <li key={slot.id}>
+                  <button
+                    onClick={() => (a ? onPlayerClick(a) : onSlotClick(slot))}
+                    className="flex w-full items-center gap-2 border-b border-dashed border-border py-1 text-left"
+                  >
+                    <span className="w-8 font-condensed text-muted-foreground">{POS_ABREV[slot.pos]}</span>
+                    {a && <img src={escudo(clubes[String(a.clube_id)], "30x30")} alt="" className="h-4 w-4" />}
+                    <span className="flex-1 truncate">{a ? a.apelido : "— vazio —"}</span>
+                    {a && <span className="font-bold">{mercadoAberto ? metricaTexto(a) : `${fmt(parciais[String(a.atleta_id)] ?? 0, 1)}`}</span>}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </aside>
       </div>
 
       <div className="mt-3 rounded-xl border border-border bg-panel-2 p-2">
