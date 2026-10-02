@@ -21,9 +21,12 @@ import { computeMNO, liveValuation } from "@/lib/mno";
 import { CedimentosMap } from "@/components/CedimentosMap";
 import { PlayersCompare } from "@/components/PlayersCompare";
 import { SubcategoriaAdmin } from "@/components/SubcategoriaAdmin";
-import { NewsFeed } from "@/components/NewsFeed";
+import { HomeSection } from "@/components/HomeSection";
+import { PlayersTable } from "@/components/PlayersTable";
 import { ProbableLineup } from "@/components/ProbableLineups";
 import { useIsAdmin, useSubcategorias } from "@/lib/subcategorias";
+import { aplicarStatus, useStatusOverrides } from "@/lib/status";
+import { getTabelaJogadores } from "@/lib/cartola.functions";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -49,7 +52,7 @@ export const Route = createFileRoute("/")({
 const HINT_KEY = "taticspro.hint.playerclick";
 const FAV_KEY = "boxto5.favoritos";
 
-type TabId = "confrontos" | "campinho" | "jogadores" | "mapa" | "noticias";
+type TabId = "inicio" | "confrontos" | "campinho" | "jogadores" | "mapa";
 
 function Countdown({ timestamp }: { timestamp: number }) {
   const [now, setNow] = useState<number | null>(null);
@@ -102,7 +105,7 @@ function Index() {
   const [hint, setHint] = useState(false);
   const [search, setSearch] = useState(false);
   const [addTarget, setAddTarget] = useState<{ slotId: string; bench: boolean } | null>(null);
-  const [tab, setTab] = useState<TabId>("confrontos");
+  const [tab, setTab] = useState<TabId>("inicio");
   const [filtroPos, setFiltroPos] = useState<number | null>(null);
   const [filtroNome, setFiltroNome] = useState("");
   const [soFavoritos, setSoFavoritos] = useState(false);
@@ -145,7 +148,11 @@ function Index() {
     return () => clearTimeout(t);
   }, [hint]);
 
-  const atletas: Atleta[] = data?.ok ? data.mercado.atletas : [];
+  const { data: overrides } = useStatusOverrides();
+  const atletas: Atleta[] = useMemo(
+    () => aplicarStatus(data?.ok ? data.mercado.atletas : [], overrides),
+    [data, overrides],
+  );
   const clubes: Record<string, Clube> = data?.ok ? data.mercado.clubes : {};
   const partidas: Partida[] = data?.ok ? data.partidas.partidas : [];
   const esquemas = data?.ok ? data.esquemas : [];
@@ -270,7 +277,7 @@ function Index() {
     if (!match) return [] as Array<{ pos: number; casa: Atleta[]; fora: Atleta[] }>;
     const sel = (clubeId: number, pos: number) =>
       atletas
-        .filter((a) => a.clube_id === clubeId && a.posicao_id === pos && (a.status_id !== 6 && a.status_id !== 3))
+        .filter((a) => a.clube_id === clubeId && a.posicao_id === pos && (a.status_id === 7 || a.status_id === 2))
         .sort((x, y) => y.media_num - x.media_num);
     return [1, 2, 3, 4, 5, 6].map((pos) => ({
       pos,
@@ -348,12 +355,37 @@ function Index() {
 
   const noticias = noticiasResp?.ok ? noticiasResp.noticias : [];
 
+  const tabelaFn = useServerFn(getTabelaJogadores);
+  const { data: snap } = useQuery({
+    queryKey: ["tabela-jogadores", subs ? Object.keys(subs).length : 0],
+    enabled: !!data?.ok,
+    staleTime: 15 * 60_000,
+    queryFn: () => tabelaFn({ data: { subs: subs ?? {} } }),
+  });
+
+  const { cedidaPorAtleta, mediaMandoPorAtleta } = useMemo(() => {
+    const ced: Record<string, number> = {};
+    const mm: Record<string, number> = {};
+    if (snap?.ok) {
+      for (const a of atletas) {
+        const id = String(a.atleta_id);
+        const sub = a.posicao_id === 1 ? "GOL" : subs?.[id];
+        const adv = snap.adversario[String(a.clube_id)];
+        const c = adv !== undefined && sub ? snap.cedidas[`${adv}-${sub}`] : undefined;
+        if (c) ced[id] = c.mediaCedida;
+        const j = snap.jogadores[id];
+        if (j) mm[id] = j.mediaMando;
+      }
+    }
+    return { cedidaPorAtleta: ced, mediaMandoPorAtleta: mm };
+  }, [snap, atletas, subs]);
+
   const TABS: Array<{ id: TabId; label: string }> = [
+    { id: "inicio", label: "Início" },
     { id: "confrontos", label: "Confrontos" },
     { id: "campinho", label: "Campinho" },
     { id: "jogadores", label: "Jogadores" },
     { id: "mapa", label: "Mapa de Cedimentos" },
-    { id: "noticias", label: "Notícias" },
   ];
 
   return (
@@ -401,20 +433,6 @@ function Index() {
               Fecha em <Countdown timestamp={fechamento} />
             </span>
           )}
-          <span className="ml-auto flex gap-2">
-            <button
-              onClick={() => setBest(true)}
-              className="brutal-sm bg-primary px-2 py-1 font-condensed text-[11px] uppercase text-primary-foreground"
-            >
-              Melhores Opções →
-            </button>
-            <button
-              onClick={() => setBestSG(true)}
-              className="brutal-sm bg-accent px-2 py-1 font-condensed text-[11px] uppercase text-accent-foreground"
-            >
-              Melhores SG →
-            </button>
-          </span>
         </div>
       </div>
 
@@ -643,19 +661,6 @@ function Index() {
                 Ir para o campinho →
               </button>
             </div>
-            <div className="brutal p-3">
-              <h3 className="font-display text-base">Últimas notícias</h3>
-              <ul className="mt-2 space-y-2">
-                {noticias.slice(0, 5).map((n) => (
-                  <li key={n.link} className="dashed-sep pt-2 first:border-0 first:pt-0">
-                    <a href={n.link} target="_blank" rel="noreferrer" className="text-[11px] leading-snug hover:underline">
-                      {n.titulo}
-                    </a>
-                  </li>
-                ))}
-                {!noticias.length && <li className="text-[11px] text-muted-foreground">Sem notícias no momento.</li>}
-              </ul>
-            </div>
           </aside>
         </section>
       )}
@@ -691,7 +696,8 @@ function Index() {
               mercadoAberto={statusMercado !== 2}
               rodada={rodadaAtual}
               parciais={parciais?.ok ? parciais.pontos : {}}
-              cedidas={esperado?.ok ? esperado.cedidas : {}}
+              cedidas={cedidaPorAtleta}
+              mediasMando={mediaMandoPorAtleta}
               onChange={(patch) => update(board.id, patch)}
               onSlotClick={(slot) => setPicker({ slot, bench: false })}
               onBenchClick={(slot) => setPicker({ slot, bench: true })}
@@ -734,84 +740,36 @@ function Index() {
           )}
 
           {subTab === "atletas" && (
-          <>
-          <div className="brutal p-3">
-            <div className="flex flex-wrap gap-2">
-              <input
-                value={filtroNome}
-                onChange={(e) => setFiltroNome(e.target.value)}
-                placeholder="Buscar por nome"
-                style={{ fontSize: 16 }}
-                className="min-w-[180px] flex-1 brutal-sm bg-panel-2 px-2 py-1 outline-none"
-              />
-              <button
-                onClick={() => setSoFavoritos((v) => !v)}
-                className={`brutal-sm px-2 py-1 font-condensed text-xs uppercase ${soFavoritos ? "bg-accent" : "bg-panel"}`}
-              >
-                ★ Favoritos
-              </button>
-            </div>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              <button
-                onClick={() => setFiltroPos(null)}
-                className={`brutal-sm px-2 py-0.5 font-condensed text-[11px] uppercase ${!filtroPos ? "bg-primary text-primary-foreground" : "bg-panel"}`}
-              >
-                Todos
-              </button>
-              {[1, 2, 3, 4, 5, 6].map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setFiltroPos(filtroPos === p ? null : p)}
-                  className={`brutal-sm px-2 py-0.5 font-condensed text-[11px] uppercase ${filtroPos === p ? "bg-primary text-primary-foreground" : "bg-panel"}`}
-                >
-                  {POS_NOME[p]}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {jogadoresLista.map((a) => (
-              <div key={a.atleta_id} className="flex items-center gap-2 brutal px-2 py-2">
-                <button onClick={() => setAberto(a)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
-                  {playerPhoto(a) ? (
-                    <img src={playerPhoto(a)!} alt={a.apelido} className="h-9 w-9 rounded-full object-cover" />
-                  ) : (
-                    <span className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary font-display text-xs">
-                      {a.apelido.slice(0, 2).toUpperCase()}
-                    </span>
-                  )}
-                  <img src={escudo(clubes[String(a.clube_id)], "30x30")} alt="" className="h-5 w-5 object-contain" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-xs font-bold">{a.apelido}</span>
-                    <span className="block text-[10px] text-muted-foreground">
-                      {POS_ABREV[a.posicao_id]}
-                      {subs?.[String(a.atleta_id)] ? ` (${subs[String(a.atleta_id)]})` : ""} · méd{" "}
-                      {fmt(a.media_num, 1)} · C$ {fmt(a.preco_num, 2)}
-                    </span>
-                  </span>
-                </button>
-                <button
-                  onClick={() => toggleFavorito(a.atleta_id)}
-                  title="Favoritar"
-                  className={`text-lg leading-none ${favoritos.includes(a.atleta_id) ? "text-accent" : "text-muted-foreground"}`}
-                >
-                  ★
-                </button>
-              </div>
-            ))}
-            {!jogadoresLista.length && (
-              <p className="text-sm text-muted-foreground">Nenhum jogador encontrado.</p>
-            )}
-          </div>
-          </>
+            <PlayersTable
+              atletas={atletas}
+              clubes={clubes}
+              favoritos={favoritos}
+              onToggleFavorito={toggleFavorito}
+              onOpenPlayer={setAberto}
+              linhas={snap?.ok ? snap.jogadores : {}}
+              cedidas={snap?.ok ? snap.cedidas : {}}
+              adversario={snap?.ok ? snap.adversario : {}}
+              mando={snap?.ok ? snap.mando : {}}
+              carregando={!snap}
+            />
           )}
         </section>
       )}
 
       {data?.ok && tab === "mapa" && <CedimentosMap clubes={clubes} />}
 
-      {data?.ok && tab === "noticias" && <NewsFeed noticias={noticias} clubes={clubes} />}
+      {data?.ok && tab === "inicio" && (
+        <HomeSection
+          atletas={atletas}
+          clubes={clubes}
+          noticias={noticias}
+          cedidas={snap?.ok ? snap.cedidas : {}}
+          adversario={snap?.ok ? snap.adversario : {}}
+          onOpenPlayer={setAberto}
+          onOpenBest={() => setBest(true)}
+          onOpenBestSG={() => setBestSG(true)}
+        />
+      )}
 
       {picker && board && (
         <PlayerPicker

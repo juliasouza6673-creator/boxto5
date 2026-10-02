@@ -20,6 +20,7 @@ type Props = {
   rodada: number;
   parciais: Record<string, number>;
   cedidas: Record<string, number>;
+  mediasMando: Record<string, number>;
   onChange: (patch: (b: Board) => Board) => void;
   onSlotClick: (slot: SlotState) => void;
   onBenchClick: (slot: SlotState) => void;
@@ -66,6 +67,7 @@ export function Pitch({
   rodada,
   parciais,
   cedidas,
+  mediasMando,
   onChange,
   onSlotClick,
   onBenchClick,
@@ -81,7 +83,22 @@ export function Pitch({
   const [width, setWidth] = useState(12);
   const [drawOpen, setDrawOpen] = useState(false);
   const [redoStack, setRedoStack] = useState<Stroke[]>([]);
-  const [mcOn, setMcOn] = useState(false);
+  const [metrica, setMetrica] = useState<"preco" | "MC" | "MM" | "M">("preco");
+  const [escolhaPos, setEscolhaPos] = useState(false);
+  const metricaTexto = (a: Atleta) => {
+    const id = String(a.atleta_id);
+    if (metrica === "MC") return cedidas[id] !== undefined ? `MC ${fmt(cedidas[id], 1)}` : "MC —";
+    if (metrica === "MM") return mediasMando[id] !== undefined ? `MM ${fmt(mediasMando[id], 1)}` : "MM —";
+    if (metrica === "M") return `M ${fmt(a.media_num, 1)}`;
+    return `C$ ${fmt(a.preco_num, 1)}`;
+  };
+  const addExtra = (pos: number) => {
+    setEscolhaPos(false);
+    onChange((b) => ({
+      ...b,
+      slots: [...b.slots, { id: crypto.randomUUID(), pos, x: 50, y: 50, atletaId: null, extra: true }],
+    }));
+  };
   const drawing = useRef<string | null>(null);
   const dragId = useRef<string | null>(null);
 
@@ -224,17 +241,26 @@ export function Pitch({
                 {b2.i}
               </button>
             ))}
-            <button
-              title="MC — mostrar média cedida no lugar do preço"
-              aria-label="Média cedida"
-              onClick={(e) => {
-                e.stopPropagation();
-                setMcOn((v) => !v);
-              }}
-              className={`h-7 rounded-md border px-1.5 font-display text-[10px] ${mcOn ? "border-accent text-accent" : "border-border text-muted-foreground"}`}
-            >
-              MC
-            </button>
+            {(
+              [
+                ["MC", "Média cedida pelo adversário"],
+                ["MM", "Média do jogador no mando"],
+                ["M", "Média geral"],
+              ] as const
+            ).map(([k, t]) => (
+              <button
+                key={k}
+                title={`${k} — ${t}`}
+                aria-label={t}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMetrica((v) => (v === k ? "preco" : k));
+                }}
+                className={`h-7 rounded-md border px-1.5 font-display text-[10px] ${metrica === k ? "border-accent bg-accent text-accent-foreground" : "border-border text-muted-foreground"}`}
+              >
+                {k}
+              </button>
+            ))}
           </div>
         <button
           onClick={onDelete}
@@ -246,7 +272,8 @@ export function Pitch({
         </button>
       </div>
 
-      <div>
+      <div className="grid gap-3 lg:grid-cols-[1fr_260px]">
+        <div>
 
 
           {drawOpen && (
@@ -438,11 +465,7 @@ export function Pitch({
                 </span>
                 {a && (
                   <span className="rounded bg-black px-1 text-[9px] font-bold text-white">
-                    {!mercadoAberto
-                      ? `${fmt(pts, 1)} pts`
-                      : mcOn
-                        ? `MC ${fmt(cedidas[String(a.atleta_id)] ?? 0, 1)}`
-                        : `C$ ${fmt(a.preco_num, 1)}`}
+                    {!mercadoAberto ? `${fmt(pts, 1)} pts` : metricaTexto(a)}
                   </span>
                 )}
                 {a && val && (
@@ -457,20 +480,33 @@ export function Pitch({
             );
           })}
 
-          <button
-            onClick={() =>
-              onChange((b) => ({
-                ...b,
-                slots: [
-                  ...b.slots,
-                  { id: crypto.randomUUID(), pos: 4, x: 50, y: 50, atletaId: null, extra: true },
-                ],
-              }))
-            }
-            className="absolute right-2 top-2 rounded-lg border border-primary/30 bg-background/50 px-2 py-0.5 text-[10px]"
-          >
-            + Jogador
-          </button>
+          <div className="absolute right-2 top-2 flex flex-col items-end gap-1" onPointerDown={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setEscolhaPos((v) => !v)}
+              className="rounded-lg border border-primary/30 bg-background/50 px-2 py-0.5 text-[10px]"
+            >
+              + Jogador
+            </button>
+            {escolhaPos && (
+              <div className="flex flex-col gap-1 rounded-lg border border-border bg-panel p-1">
+                {[
+                  [1, "Goleiro"],
+                  [3, "Zagueiro"],
+                  [2, "Lateral"],
+                  [4, "Meia"],
+                  [5, "Atacante"],
+                ].map(([p, n]) => (
+                  <button
+                    key={p}
+                    onClick={() => addExtra(p as number)}
+                    className="rounded px-2 py-0.5 text-left text-[10px] hover:bg-accent"
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           <div className="absolute bottom-2 left-2 flex flex-col items-start gap-1">
             <span className="rounded-lg border border-success/40 bg-background/70 px-2 py-0.5 font-display text-[11px] text-success">
@@ -520,6 +556,31 @@ export function Pitch({
             C$ {fmt(valorTotal, 2)}
           </span>
         </div>
+        </div>
+        <aside className="brutal-sm bg-panel-2 p-2 text-[11px]">
+          <div className="mb-2 flex justify-between font-condensed uppercase">
+            <span>Escalação · {board.formacao}</span>
+            <span className="text-primary">C$ {fmt(valorTotal, 2)}</span>
+          </div>
+          <ul className="space-y-1">
+            {[...board.slots].sort((x, y) => x.pos - y.pos).map((slot) => {
+              const a = slot.atletaId ? atletasById.get(slot.atletaId) : undefined;
+              return (
+                <li key={slot.id}>
+                  <button
+                    onClick={() => (a ? onPlayerClick(a) : onSlotClick(slot))}
+                    className="flex w-full items-center gap-2 border-b border-dashed border-border py-1 text-left"
+                  >
+                    <span className="w-8 font-condensed text-muted-foreground">{POS_ABREV[slot.pos]}</span>
+                    {a && <img src={escudo(clubes[String(a.clube_id)], "30x30")} alt="" className="h-4 w-4" />}
+                    <span className="flex-1 truncate">{a ? a.apelido : "— vazio —"}</span>
+                    {a && <span className="font-bold">{mercadoAberto ? metricaTexto(a) : `${fmt(parciais[String(a.atleta_id)] ?? 0, 1)}`}</span>}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </aside>
       </div>
 
       <div className="mt-3 rounded-xl border border-border bg-panel-2 p-2">
