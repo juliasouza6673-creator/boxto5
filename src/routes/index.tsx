@@ -756,7 +756,14 @@ function Index() {
         </section>
       )}
 
-      {data?.ok && tab === "mapa" && <CedimentosMap clubes={clubes} />}
+      {data?.ok && tab === "mapa" && (
+        <CedimentosMap
+          clubes={clubes}
+          atletas={atletas}
+          producao={snap?.ok ? snap.jogadores : {}}
+          onOpenPlayer={setAberto}
+        />
+      )}
 
       {data?.ok && tab === "inicio" && (
         <HomeSection
