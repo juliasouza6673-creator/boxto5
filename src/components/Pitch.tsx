@@ -433,7 +433,7 @@ export function Pitch({
                           a
                             ? {
                                 ...b,
-                                capitao: b.capitao === a.atleta_id ? null : b.capitao,
+                                capitao: b.capitao === a.atleta_id ? null : (b.capitao ?? null),
                                 slots: b.slots.map((s) => (s.id === slot.id ? { ...s, atletaId: null } : s)),
                               }
                             : { ...b, slots: b.slots.filter((s) => s.id !== slot.id) },
