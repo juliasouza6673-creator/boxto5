@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import type { Atleta, Clube } from "@/lib/cartola-types";
 import { POS_ABREV, POS_NOME, STATUS_NOME } from "@/lib/cartola-types";
 import { escudo, fmt, playerPhoto } from "@/lib/cartola-ui";
-import { SUBS_POR_POSICAO, useSubcategorias, type Sub } from "@/lib/subcategorias";
+import { SUBS_POR_POSICAO, useSubcategorias } from "@/lib/subcategorias";
 
 export type LinhaTabela = {
   jogos: number;
@@ -27,20 +27,44 @@ type Props = {
   carregando?: boolean;
 };
 
-type ColKey = "sub" | "nome" | "jogos" | "media" | "cedida" | "mando" | "G" | "A" | "DS" | "DE";
+type Modo = "gerais" | "ataque" | "defesa";
+type Col = { key: string; abrev: string; titulo: string };
 
-const COLUNAS: Array<{ key: ColKey; abrev: string; titulo: string; numerica: boolean }> = [
-  { key: "sub", abrev: "SUB", titulo: "Subcategoria", numerica: false },
-  { key: "nome", abrev: "Jogador", titulo: "Nome do jogador", numerica: false },
-  { key: "jogos", abrev: "J", titulo: "Jogos", numerica: true },
-  { key: "media", abrev: "M", titulo: "Média geral", numerica: true },
-  { key: "cedida", abrev: "MC", titulo: "Média cedida pelo adversário no mando que vai jogar", numerica: true },
-  { key: "mando", abrev: "MM", titulo: "Média do jogador no mando", numerica: true },
-  { key: "G", abrev: "G", titulo: "Gols (últimos 5 no mando)", numerica: true },
-  { key: "A", abrev: "A", titulo: "Assistências (últimos 5 no mando)", numerica: true },
-  { key: "DS", abrev: "DS", titulo: "Desarmes (últimos 5 no mando)", numerica: true },
-  { key: "DE", abrev: "DE", titulo: "Defesas — goleiros (últimos 5 no mando)", numerica: true },
+const COLS_GERAIS: Col[] = [
+  { key: "jogos", abrev: "J", titulo: "Jogos" },
+  { key: "preco", abrev: "C$", titulo: "Preço" },
+  { key: "variacao", abrev: "VAR", titulo: "Variação (C$)" },
+  { key: "ultima", abrev: "ÚLT", titulo: "Última pontuação" },
+  { key: "media", abrev: "MÉD", titulo: "Média geral" },
+  { key: "mando", abrev: "MM", titulo: "Média no mando" },
+  { key: "cedida", abrev: "MC", titulo: "Média cedida pelo adversário" },
+  { key: "mpv", abrev: "MÍN", titulo: "Mínimo para valorizar" },
 ];
+const COLS_ATAQUE: Col[] = [
+  { key: "G", abrev: "G", titulo: "Gols" },
+  { key: "A", abrev: "A", titulo: "Assistências" },
+  { key: "FT", abrev: "FT", titulo: "Finalização na trave" },
+  { key: "FD", abrev: "FD", titulo: "Finalização defendida" },
+  { key: "FF", abrev: "FF", titulo: "Finalização para fora" },
+  { key: "FS", abrev: "FS", titulo: "Faltas sofridas" },
+  { key: "PP", abrev: "PP", titulo: "Pênalti perdido" },
+  { key: "I", abrev: "I", titulo: "Impedimentos" },
+  { key: "PS", abrev: "PS", titulo: "Pênalti sofrido" },
+];
+const COLS_DEFESA: Col[] = [
+  { key: "SG", abrev: "SG", titulo: "Jogos sem sofrer gol (GOL/ZAG/LAT)" },
+  { key: "DP", abrev: "DP", titulo: "Defesa de pênalti (GOL)" },
+  { key: "DE", abrev: "DE", titulo: "Defesas (GOL)" },
+  { key: "DS", abrev: "DS", titulo: "Desarmes" },
+  { key: "GC", abrev: "GC", titulo: "Gol contra" },
+  { key: "CV", abrev: "CV", titulo: "Cartão vermelho" },
+  { key: "CA", abrev: "CA", titulo: "Cartão amarelo" },
+  { key: "GS", abrev: "GS", titulo: "Gols sofridos (GOL)" },
+  { key: "FC", abrev: "FC", titulo: "Faltas cometidas" },
+  { key: "PC", abrev: "PC", titulo: "Pênalti cometido" },
+];
+const SO_GOL = ["DP", "DE", "GS"];
+const SG_POS = [1, 2, 3];
 
 const STATUS_FILTROS = [
   { id: 7, label: "Provável" },
@@ -66,161 +90,273 @@ export function PlayersTable({
   const [busca, setBusca] = useState("");
   const [posSel, setPosSel] = useState<number[]>([]);
   const [subSel, setSubSel] = useState<string[]>([]);
-  const [statusSel, setStatusSel] = useState<number[]>([]);
+  const [statusSel, setStatusSel] = useState<number[]>([7]);
+  const [clubeSel, setClubeSel] = useState<number[]>([]);
+  const [mandoSel, setMandoSel] = useState<"geral" | "casa" | "fora">("geral");
+  const [minJogos, setMinJogos] = useState(0);
+  const [modos, setModos] = useState<Modo[]>(["gerais"]);
   const [soFav, setSoFav] = useState(false);
-  const [ordem, setOrdem] = useState<{ col: ColKey; dir: "desc" | "asc" }>({ col: "media", dir: "desc" });
+  const [ordem, setOrdem] = useState<{ col: string; dir: "desc" | "asc" }>({ col: "jogos", dir: "desc" });
 
   const todasSubs = useMemo(() => ["GOL", ...Object.values(SUBS_POR_POSICAO).flat()], []);
+  const listaClubes = useMemo(
+    () => Object.values(clubes).filter((c) => c.escudos).sort((a, b) => a.nome.localeCompare(b.nome)),
+    [clubes],
+  );
+  const maxJogos = useMemo(() => Math.max(1, ...atletas.map((a) => a.jogos_num ?? 0)), [atletas]);
+
+  const colunas = useMemo(
+    () => [
+      ...(modos.includes("gerais") ? COLS_GERAIS : []),
+      ...(modos.includes("ataque") ? COLS_ATAQUE : []),
+      ...(modos.includes("defesa") ? COLS_DEFESA : []),
+    ],
+    [modos],
+  );
 
   const toggle = <T,>(arr: T[], v: T, set: (n: T[]) => void) =>
     set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
 
+  const subDe = (a: Atleta) => (a.posicao_id === 1 ? "GOL" : (subs?.[String(a.atleta_id)] ?? "—"));
+
+  const valor = (a: Atleta, col: string): number | null => {
+    const l = linhas[String(a.atleta_id)];
+    const sc = a.scout ?? {};
+    switch (col) {
+      case "jogos":
+        return a.jogos_num ?? 0;
+      case "preco":
+        return a.preco_num;
+      case "variacao":
+        return a.variacao_num;
+      case "ultima":
+        return a.pontos_num;
+      case "media":
+        return a.media_num;
+      case "mando":
+        return l ? l.mediaMando : null;
+      case "cedida": {
+        const adv = adversario[String(a.clube_id)];
+        return adv !== undefined ? (cedidas[`${adv}-${subDe(a)}`]?.mediaCedida ?? null) : null;
+      }
+      case "mpv":
+        return a.minimo_para_valorizar ?? null;
+      case "SG":
+        return SG_POS.includes(a.posicao_id) ? (sc.SG ?? 0) : 0;
+      default:
+        if (SO_GOL.includes(col) && a.posicao_id !== 1) return null;
+        return sc[col] ?? 0;
+    }
+  };
+
   const dados = useMemo(() => {
     const q = busca.trim().toLowerCase();
-    const valor = (a: Atleta, col: ColKey): number | string => {
-      const l = linhas[String(a.atleta_id)];
-      const sub = a.posicao_id === 1 ? "GOL" : (subs?.[String(a.atleta_id)] ?? "");
-      const adv = adversario[String(a.clube_id)];
-      const ced = adv !== undefined && sub ? cedidas[`${adv}-${sub}`]?.mediaCedida : undefined;
-      switch (col) {
-        case "sub":
-          return sub;
-        case "nome":
-          return a.apelido.toLowerCase();
-        case "jogos":
-          return a.jogos_num ?? 0;
-        case "media":
-          return a.media_num ?? 0;
-        case "cedida":
-          return ced ?? -1;
-        case "mando":
-          return l?.mediaMando ?? -1;
-        case "G":
-          return l?.gols ?? 0;
-        case "A":
-          return l?.assistencias ?? 0;
-        case "DS":
-          return l?.desarmes ?? 0;
-        case "DE":
-          return l?.defesas ?? 0;
-      }
-    };
     return atletas
+      .filter((a) => a.posicao_id !== 6)
       .filter((a) => (posSel.length ? posSel.includes(a.posicao_id) : true))
-      .filter((a) =>
-        subSel.length
-          ? subSel.includes(a.posicao_id === 1 ? "GOL" : (subs?.[String(a.atleta_id)] ?? "—"))
-          : true,
-      )
+      .filter((a) => (subSel.length ? subSel.includes(subDe(a)) : true))
       .filter((a) => (statusSel.length ? statusSel.includes(a.status_id) : true))
+      .filter((a) => (clubeSel.length ? clubeSel.includes(a.clube_id) : true))
+      .filter((a) => (mandoSel === "geral" ? true : mando[String(a.clube_id)] === mandoSel))
+      .filter((a) => (a.jogos_num ?? 0) >= minJogos)
       .filter((a) => (soFav ? favoritos.includes(a.atleta_id) : true))
       .filter((a) => (q ? a.apelido.toLowerCase().includes(q) : true))
       .sort((a, b) => {
-        const va = valor(a, ordem.col);
-        const vb = valor(b, ordem.col);
-        const cmp = typeof va === "string" || typeof vb === "string"
-          ? String(va).localeCompare(String(vb))
-          : (va as number) - (vb as number);
-        return ordem.dir === "desc" ? -cmp : cmp;
+        if (ordem.col === "nome") {
+          const c = a.apelido.localeCompare(b.apelido);
+          return ordem.dir === "desc" ? -c : c;
+        }
+        const va = valor(a, ordem.col) ?? -999;
+        const vb = valor(b, ordem.col) ?? -999;
+        return ordem.dir === "desc" ? vb - va : va - vb;
       })
       .slice(0, 200);
-  }, [atletas, posSel, subSel, statusSel, soFav, favoritos, busca, ordem, linhas, cedidas, adversario, subs]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [atletas, posSel, subSel, statusSel, clubeSel, mandoSel, minJogos, soFav, favoritos, busca, ordem, linhas, cedidas, adversario, subs, mando]);
 
-  const ordenar = (col: ColKey) =>
+  const ordenar = (col: string) =>
     setOrdem((o) => (o.col === col ? { col, dir: o.dir === "desc" ? "asc" : "desc" } : { col, dir: "desc" }));
+
+  const chip = (ativo: boolean) =>
+    `brutal-sm px-2 py-0.5 font-condensed text-[11px] uppercase ${ativo ? "bg-primary text-primary-foreground" : "bg-panel"}`;
+
+  const confronto = (a: Atleta) => {
+    const adv = adversario[String(a.clube_id)];
+    const m = mando[String(a.clube_id)];
+    const eu = clubes[String(a.clube_id)]?.abreviacao ?? "";
+    const ele = adv !== undefined ? (clubes[String(adv)]?.abreviacao ?? "") : "";
+    if (!ele) return "";
+    return m === "casa" ? `${eu} x ${ele}` : `${ele} x ${eu}`;
+  };
 
   return (
     <div className="space-y-3">
-      <div className="brutal p-3">
-        <div className="flex flex-wrap gap-2">
-          <input
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar por nome"
-            style={{ fontSize: 16 }}
-            className="min-w-[180px] flex-1 brutal-sm bg-panel-2 px-2 py-1 outline-none"
-          />
-          <button
-            onClick={() => setSoFav((v) => !v)}
-            className={`brutal-sm px-2 py-1 font-condensed text-xs uppercase ${soFav ? "bg-accent" : "bg-panel"}`}
-          >
-            ★ Favoritos
-          </button>
-        </div>
-
-        <p className="mt-2 font-condensed text-[10px] uppercase text-muted-foreground">Posição</p>
-        <div className="mt-1 flex flex-wrap gap-1.5">
-          {[1, 2, 3, 4, 5, 6].map((p) => (
-            <button
-              key={p}
-              onClick={() => toggle(posSel, p, setPosSel)}
-              className={`brutal-sm px-2 py-0.5 font-condensed text-[11px] uppercase ${posSel.includes(p) ? "bg-primary text-primary-foreground" : "bg-panel"}`}
-            >
-              {POS_NOME[p]}
+      <div className="brutal grid gap-3 p-3 md:grid-cols-2">
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-2">
+            <input
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar por nome"
+              style={{ fontSize: 16 }}
+              className="min-w-[160px] flex-1 brutal-sm bg-panel-2 px-2 py-1 outline-none"
+            />
+            <button onClick={() => setSoFav((v) => !v)} className={chip(soFav)}>
+              ★ Favoritos
             </button>
-          ))}
-        </div>
-
-        <p className="mt-2 font-condensed text-[10px] uppercase text-muted-foreground">Subcategoria</p>
-        <div className="mt-1 flex flex-wrap gap-1.5">
-          {todasSubs.map((s) => (
-            <button
-              key={s}
-              onClick={() => toggle(subSel, s, setSubSel)}
-              className={`brutal-sm px-2 py-0.5 font-condensed text-[11px] uppercase ${subSel.includes(s) ? "bg-primary text-primary-foreground" : "bg-panel"}`}
-            >
-              {s}
-            </button>
-          ))}
-        </div>
-
-        <p className="mt-2 font-condensed text-[10px] uppercase text-muted-foreground">Status</p>
-        <div className="mt-1 flex flex-wrap gap-1.5">
-          {STATUS_FILTROS.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => toggle(statusSel, s.id, setStatusSel)}
-              className={`brutal-sm px-2 py-0.5 font-condensed text-[11px] uppercase ${statusSel.includes(s.id) ? "bg-primary text-primary-foreground" : "bg-panel"}`}
-            >
-              {s.label}
-            </button>
-          ))}
-          {(posSel.length || subSel.length || statusSel.length) > 0 && (
-            <button
-              onClick={() => {
-                setPosSel([]);
-                setSubSel([]);
-                setStatusSel([]);
-              }}
-              className="brutal-sm bg-destructive px-2 py-0.5 font-condensed text-[11px] uppercase text-destructive-foreground"
-            >
-              Limpar filtros
-            </button>
+          </div>
+          <div>
+            <p className="font-condensed text-[10px] uppercase text-muted-foreground">Status</p>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {STATUS_FILTROS.map((s) => (
+                <button key={s.id} onClick={() => toggle(statusSel, s.id, setStatusSel)} className={chip(statusSel.includes(s.id))}>
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="font-condensed text-[10px] uppercase text-muted-foreground">Mando</p>
+            <div className="mt-1 flex gap-1.5">
+              {(["geral", "casa", "fora"] as const).map((m) => (
+                <button key={m} onClick={() => setMandoSel(m)} className={chip(mandoSel === m)}>
+                  {m === "geral" ? "Geral" : m === "casa" ? "Em casa" : "Fora"}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <label className="font-condensed text-[10px] uppercase text-muted-foreground">
+              Mínimo de jogos
+              <select
+                value={minJogos}
+                onChange={(e) => setMinJogos(Number(e.target.value))}
+                className="ml-1 block brutal-sm bg-panel px-1 py-0.5 text-xs text-foreground"
+              >
+                {Array.from({ length: maxJogos + 1 }, (_, i) => (
+                  <option key={i} value={i}>
+                    {i === 0 ? "Todos" : `${i}+`}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="font-condensed text-[10px] uppercase text-muted-foreground">
+              Times
+              <select
+                value=""
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  if (v === -1) setClubeSel([]);
+                  else if (v) toggle(clubeSel, v, setClubeSel);
+                }}
+                className="ml-1 block brutal-sm bg-panel px-1 py-0.5 text-xs text-foreground"
+              >
+                <option value="">{clubeSel.length ? `${clubeSel.length} selecionado(s)` : "Todos os times"}</option>
+                <option value={-1}>Todos os times</option>
+                {listaClubes.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {clubeSel.includes(c.id) ? "✓ " : ""}
+                    {c.nome}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {clubeSel.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {clubeSel.map((id) => (
+                <button key={id} onClick={() => toggle(clubeSel, id, setClubeSel)} className="brutal-sm flex items-center gap-1 bg-panel px-1 py-0.5 text-[10px]">
+                  <img src={escudo(clubes[String(id)], "30x30")} alt="" className="h-4 w-4" /> ✕
+                </button>
+              ))}
+            </div>
           )}
+        </div>
+
+        <div className="space-y-2">
+          <div>
+            <p className="font-condensed text-[10px] uppercase text-muted-foreground">Posição</p>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {[1, 2, 3, 4, 5].map((p) => (
+                <button key={p} onClick={() => toggle(posSel, p, setPosSel)} className={chip(posSel.includes(p))}>
+                  {POS_NOME[p]}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="font-condensed text-[10px] uppercase text-muted-foreground">Subcategoria</p>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {todasSubs.map((s) => (
+                <button key={s} onClick={() => toggle(subSel, s, setSubSel)} className={chip(subSel.includes(s))}>
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="font-condensed text-[10px] uppercase text-muted-foreground">Dados exibidos (marque um ou mais)</p>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {(
+                [
+                  ["gerais", "Dados gerais"],
+                  ["ataque", "Scouts de ataque"],
+                  ["defesa", "Scouts de defesa"],
+                ] as const
+              ).map(([m, label]) => (
+                <button
+                  key={m}
+                  onClick={() => {
+                    const n = modos.includes(m) ? modos.filter((x) => x !== m) : [...modos, m];
+                    setModos(n.length ? n : [m]);
+                  }}
+                  className={chip(modos.includes(m))}
+                >
+                  {modos.includes(m) ? "✓ " : ""}
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              setPosSel([]);
+              setSubSel([]);
+              setStatusSel([7]);
+              setClubeSel([]);
+              setMandoSel("geral");
+              setMinJogos(0);
+            }}
+            className="brutal-sm bg-destructive px-2 py-0.5 font-condensed text-[11px] uppercase text-destructive-foreground"
+          >
+            Limpar filtros
+          </button>
         </div>
       </div>
 
       {carregando && (
-        <p className="font-condensed text-[11px] uppercase text-muted-foreground">
-          Calculando médias no mando e cedimentos…
-        </p>
+        <p className="font-condensed text-[11px] uppercase text-muted-foreground">Calculando médias no mando e cedimentos…</p>
       )}
 
       <div className="brutal overflow-x-auto">
-        <table className="w-full min-w-[720px] text-[11px]">
+        <table className="w-full text-[11px]">
           <thead>
             <tr className="border-b-2 border-border bg-panel-2">
               <th className="px-1 py-2" />
-              <th className="px-1 py-2 text-left font-condensed uppercase">Time</th>
-              {COLUNAS.map((c) => (
-                <th key={c.key} className={`px-1 py-2 ${c.numerica ? "text-right" : "text-left"}`}>
+              <th className="min-w-[230px] px-2 py-2 text-left">
+                <button onClick={() => ordenar("nome")} className="font-condensed uppercase">
+                  Jogador{ordem.col === "nome" ? (ordem.dir === "desc" ? " ↓" : " ↑") : ""}
+                </button>
+              </th>
+              {colunas.map((c) => (
+                <th key={c.key} className="px-1.5 py-2 text-center">
                   <button
                     onClick={() => ordenar(c.key)}
                     title={c.titulo}
                     className={`font-condensed uppercase ${ordem.col === c.key ? "text-primary" : ""}`}
                   >
                     {c.abrev}
-                    {ordem.col === c.key ? (ordem.dir === "desc" ? " ↓" : " ↑") : ""}
+                    {ordem.col === c.key ? (ordem.dir === "desc" ? "↓" : "↑") : ""}
                   </button>
                 </th>
               ))}
@@ -228,56 +364,65 @@ export function PlayersTable({
           </thead>
           <tbody>
             {dados.map((a) => {
-              const l = linhas[String(a.atleta_id)];
-              const sub = a.posicao_id === 1 ? "GOL" : (subs?.[String(a.atleta_id)] ?? "—");
-              const adv = adversario[String(a.clube_id)];
-              const ced = adv !== undefined ? cedidas[`${adv}-${sub}`]?.mediaCedida : undefined;
+              const clube = clubes[String(a.clube_id)];
+              const foto = playerPhoto(a);
               return (
                 <tr key={a.atleta_id} className="border-b border-dashed border-border/50">
-                  <td className="px-1 py-1">
+                  <td className="px-1 py-1.5">
                     <button
                       onClick={() => onToggleFavorito(a.atleta_id)}
                       title="Favoritar e comparar"
-                      className={`text-base leading-none ${favoritos.includes(a.atleta_id) ? "text-accent" : "text-muted-foreground"}`}
+                      className={`text-lg leading-none ${favoritos.includes(a.atleta_id) ? "text-accent" : "text-muted-foreground"}`}
                     >
                       ★
                     </button>
                   </td>
-                  <td className="px-1 py-1">
-                    <img
-                      src={escudo(clubes[String(a.clube_id)], "30x30")}
-                      alt={clubes[String(a.clube_id)]?.abreviacao ?? ""}
-                      title={clubes[String(a.clube_id)]?.nome ?? ""}
-                      className="h-5 w-5 object-contain"
-                    />
-                  </td>
-                  <td className="px-1 py-1 font-condensed uppercase">{sub}</td>
-                  <td className="px-1 py-1">
-                    <button onClick={() => onOpenPlayer(a)} className="flex items-center gap-1.5 text-left">
-                      {playerPhoto(a) ? (
-                        <img src={playerPhoto(a)!} alt="" className="h-6 w-6 rounded-full object-cover" />
-                      ) : (
-                        <span className="h-6 w-6 rounded-full bg-secondary" />
-                      )}
-                      <span className="font-bold">{a.apelido}</span>
-                      <span
-                        className={`font-condensed text-[9px] uppercase ${a.status_id === 7 ? "text-success" : a.status_id === 2 ? "text-warning" : "text-muted-foreground"}`}
-                      >
-                        {STATUS_NOME[a.status_id] ?? ""}
+                  <td className="px-2 py-1.5">
+                    <button onClick={() => onOpenPlayer(a)} className="flex items-center gap-2 text-left">
+                      <span className="relative shrink-0">
+                        {foto ? (
+                          <img src={foto} alt="" className="h-10 w-10 rounded-full border-2 border-foreground object-cover" />
+                        ) : (
+                          <img src={escudo(clube, "45x45")} alt="" className="h-10 w-10 object-contain" />
+                        )}
+                        {foto && (
+                          <img src={escudo(clube, "30x30")} alt="" className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-background" />
+                        )}
                       </span>
-                      <span className="text-[9px] text-muted-foreground">
-                        {mando[String(a.clube_id)] === "casa" ? "casa" : mando[String(a.clube_id)] === "fora" ? "fora" : ""}
+                      <span className="min-w-0">
+                        <span className="flex items-center gap-1 text-sm font-bold">
+                          [{POS_ABREV[a.posicao_id]}] {a.apelido}
+                          <span
+                            className={`font-condensed text-[9px] uppercase ${a.status_id === 7 ? "text-success" : a.status_id === 2 ? "text-warning" : "text-muted-foreground"}`}
+                          >
+                            {STATUS_NOME[a.status_id] ?? ""}
+                          </span>
+                        </span>
+                        <span className="block text-[10px] text-muted-foreground">
+                          {clube?.abreviacao} · {subDe(a)} {confronto(a) && `· ${confronto(a)}`}
+                        </span>
                       </span>
                     </button>
                   </td>
-                  <td className="px-1 py-1 text-right">{a.jogos_num ?? 0}</td>
-                  <td className="px-1 py-1 text-right">{fmt(a.media_num, 1)}</td>
-                  <td className="px-1 py-1 text-right font-bold text-primary">{ced === undefined ? "-" : fmt(ced, 1)}</td>
-                  <td className="px-1 py-1 text-right">{l ? fmt(l.mediaMando, 1) : "-"}</td>
-                  <td className="px-1 py-1 text-right">{l?.gols ?? 0}</td>
-                  <td className="px-1 py-1 text-right">{l?.assistencias ?? 0}</td>
-                  <td className="px-1 py-1 text-right">{l?.desarmes ?? 0}</td>
-                  <td className="px-1 py-1 text-right">{a.posicao_id === 1 ? (l?.defesas ?? 0) : "-"}</td>
+                  {colunas.map((c) => {
+                    const v = valor(a, c.key);
+                    const dec = ["preco", "variacao", "ultima", "media", "mando", "cedida", "mpv"].includes(c.key);
+                    const cls =
+                      c.key === "variacao" && v !== null
+                        ? v > 0
+                          ? "text-success"
+                          : v < 0
+                            ? "text-destructive"
+                            : ""
+                        : c.key === "cedida"
+                          ? "font-bold text-primary"
+                          : "";
+                    return (
+                      <td key={c.key} className={`px-1.5 py-1.5 text-center tabular-nums ${cls}`}>
+                        {v === null ? "-" : dec ? fmt(v, c.key === "preco" ? 2 : 1) : v}
+                      </td>
+                    );
+                  })}
                 </tr>
               );
             })}
@@ -286,9 +431,7 @@ export function PlayersTable({
         {!dados.length && <p className="p-4 text-center text-sm text-muted-foreground">Nenhum jogador encontrado.</p>}
       </div>
       <p className="text-[10px] text-muted-foreground">
-        MC = média cedida pelo adversário à subcategoria · MM = média do jogador no mando · G/A/DS/DE somados nos
-        últimos 5 jogos no mando. Toque no cabeçalho para ordenar; passe o mouse para ver o nome completo da coluna.
-        {" "}Posições: {POS_ABREV[1]}, {POS_ABREV[2]}, {POS_ABREV[3]}, {POS_ABREV[4]}, {POS_ABREV[5]}, {POS_ABREV[6]}.
+        Toque no cabeçalho para ordenar; passe o mouse para ver o nome completo da coluna. Scouts somam a temporada.
       </p>
     </div>
   );
