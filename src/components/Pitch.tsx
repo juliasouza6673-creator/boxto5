@@ -5,6 +5,7 @@ import type { Atleta, Clube, Esquema } from "@/lib/cartola-types";
 import { POS_ABREV } from "@/lib/cartola-types";
 import { escudo, fmt, playerPhoto, statusBorderClass } from "@/lib/cartola-ui";
 import { computeMNO, liveValuation } from "@/lib/mno";
+import campinhoBg from "@/assets/campinho7.png.asset.json";
 
 type Tool = "none" | "pen" | "text" | "eraser";
 
@@ -326,18 +327,14 @@ export function Pitch({
           onPointerMove={onPointerMove}
           onPointerUp={endPointer}
           onPointerLeave={endPointer}
-          className="relative min-w-0 flex-1 touch-none overflow-hidden rounded-xl border border-border"
+          className="relative mx-auto w-full max-w-[520px] min-w-0 flex-1 touch-none overflow-hidden rounded-xl border-2 border-foreground"
           style={{
-            aspectRatio: "3 / 3.7",
-            background:
-              "repeating-linear-gradient(90deg, oklch(1 0 0 / 4%) 0 8%, transparent 8% 16%), linear-gradient(180deg, var(--pitch-b), var(--pitch-a) 65%, oklch(0.3 0.07 152))",
+            aspectRatio: "3 / 4",
+            backgroundImage: `url(${campinhoBg.url})`,
+            backgroundSize: "100% 100%",
+            backgroundPosition: "center",
           }}
         >
-          <div className="pointer-events-none absolute inset-2 rounded-sm border border-primary/25" />
-          <div className="pointer-events-none absolute left-1/2 top-1/2 h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary/25" />
-          <div className="pointer-events-none absolute inset-x-2 top-1/2 border-t border-primary/20" />
-          <div className="pointer-events-none absolute bottom-2 left-1/2 h-[16%] w-[55%] -translate-x-1/2 border border-b-0 border-primary/25" />
-          <div className="pointer-events-none absolute top-2 left-1/2 h-[16%] w-[55%] -translate-x-1/2 border border-t-0 border-primary/25" />
 
           <svg
             viewBox="0 0 100 100"
@@ -425,7 +422,28 @@ export function Pitch({
                   dragId.current = slot.id;
                 }}
               >
-                <div className="relative">
+                <div className="group relative">
+                  {!board.locked && (
+                    <button
+                      title={a ? "Remover jogador" : "Excluir posição"}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onChange((b) =>
+                          a
+                            ? {
+                                ...b,
+                                capitao: b.capitao === a.atleta_id ? null : b.capitao,
+                                slots: b.slots.map((s) => (s.id === slot.id ? { ...s, atletaId: null } : s)),
+                              }
+                            : { ...b, slots: b.slots.filter((s) => s.id !== slot.id) },
+                        );
+                      }}
+                      className="absolute -right-2 -top-2 z-10 flex h-5 w-5 items-center justify-center rounded-full border-2 border-foreground bg-destructive text-[10px] font-bold text-destructive-foreground opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100"
+                    >
+                      ✕
+                    </button>
+                  )}
                   <button
                     onClick={() => (a ? onPlayerClick(a) : onSlotClick(slot))}
                     className={`flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border-2 bg-panel/90 shadow ${a ? statusBorderClass(a.status_id) : "border-primary/40"}`}
