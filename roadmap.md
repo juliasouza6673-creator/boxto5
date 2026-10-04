@@ -17,3 +17,7 @@
 - [x] Nova seção Início: "Atualização de Mercado" com mudanças de status dos jogadores
 - [x] Início: seção "Recomendações para a Rodada" com Melhores Opções e Melhores SG (remover botões do topo)
 - [x] Campinho com visual inspirado na foto modelo (lista de escalação lateral, banco, custo/previsão)
+- [x] Tabela Jogadores: filtro de janela "Últimos jogos" (Temporada / Últimos 5 / Últimos 10) respeitando o mando (geral/casa/fora); scouts, jogos e média refletem a janela
+- [ ] Card do jogador (PlayerModal): cedimentos estritos por posição/subcategoria, desduplicação por rodada, top 5, sigla de posição
+- [ ] Início: "Principais Jogadores" e "Principais SGs" clicáveis, "Quem Mais Cede" por posição (GOL, LD, LE, ZAG, MEI, ATA), Atualizações de Mercado na lateral, Top Dicas separado de Notícias do Brasileirão
+- [ ] Confrontos: campinhos verticais com prováveis por posição, gaveta de desfalques, editor admin drag-and-drop
