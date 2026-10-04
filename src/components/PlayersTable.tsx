@@ -12,6 +12,7 @@ export type LinhaTabela = {
   assistencias: number;
   desarmes: number;
   defesas: number;
+  historico?: Array<{ rodada: number; pontuacao: number; scout: Record<string, number>; mando: "casa" | "fora" }>;
 };
 
 type Props = {
@@ -93,6 +94,7 @@ export function PlayersTable({
   const [statusSel, setStatusSel] = useState<number[]>([7]);
   const [clubeSel, setClubeSel] = useState<number[]>([]);
   const [mandoSel, setMandoSel] = useState<"geral" | "casa" | "fora">("geral");
+  const [janela, setJanela] = useState(0); // 0 = temporada inteira; 5/10 = últimos N jogos no mando
   const [minJogos, setMinJogos] = useState(0);
   const [modos, setModos] = useState<Modo[]>(["gerais"]);
   const [soFav, setSoFav] = useState(false);
@@ -119,20 +121,40 @@ export function PlayersTable({
 
   const subDe = (a: Atleta) => (a.posicao_id === 1 ? "GOL" : (subs?.[String(a.atleta_id)] ?? "—"));
 
+  /** Jogos da janela selecionada (respeita o mando escolhido). */
+  const jogosJanela = (a: Atleta) => {
+    if (!janela) return null;
+    const h = linhas[String(a.atleta_id)]?.historico ?? [];
+    const filtrados = mandoSel === "geral" ? h : h.filter((g) => g.mando === mandoSel);
+    return filtrados.slice(0, janela);
+  };
+
+  const scoutsJanela = (a: Atleta): Record<string, number> => {
+    const jogos = jogosJanela(a) ?? [];
+    const acc: Record<string, number> = {};
+    for (const j of jogos) {
+      for (const [k, v] of Object.entries(j.scout ?? {})) acc[k] = (acc[k] ?? 0) + v;
+    }
+    return acc;
+  };
+
   const valor = (a: Atleta, col: string): number | null => {
     const l = linhas[String(a.atleta_id)];
-    const sc = a.scout ?? {};
+    const sc = janela ? scoutsJanela(a) : (a.scout ?? {});
     switch (col) {
       case "jogos":
-        return a.jogos_num ?? 0;
+        return janela ? (jogosJanela(a)?.length ?? 0) : (a.jogos_num ?? 0);
       case "preco":
         return a.preco_num;
       case "variacao":
         return a.variacao_num;
       case "ultima":
         return a.pontos_num;
-      case "media":
-        return a.media_num;
+      case "media": {
+        if (!janela) return a.media_num;
+        const jogos = jogosJanela(a) ?? [];
+        return jogos.length ? jogos.reduce((s, g) => s + g.pontuacao, 0) / jogos.length : null;
+      }
       case "mando":
         return l ? l.mediaMando : null;
       case "cedida": {
@@ -172,7 +194,7 @@ export function PlayersTable({
       })
       .slice(0, 200);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [atletas, posSel, subSel, statusSel, clubeSel, mandoSel, minJogos, soFav, favoritos, busca, ordem, linhas, cedidas, adversario, subs, mando]);
+  }, [atletas, posSel, subSel, statusSel, clubeSel, mandoSel, janela, minJogos, soFav, favoritos, busca, ordem, linhas, cedidas, adversario, subs, mando]);
 
   const ordenar = (col: string) =>
     setOrdem((o) => (o.col === col ? { col, dir: o.dir === "desc" ? "asc" : "desc" } : { col, dir: "desc" }));
@@ -221,6 +243,18 @@ export function PlayersTable({
               {(["geral", "casa", "fora"] as const).map((m) => (
                 <button key={m} onClick={() => setMandoSel(m)} className={chip(mandoSel === m)}>
                   {m === "geral" ? "Geral" : m === "casa" ? "Em casa" : "Fora"}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="font-condensed text-[10px] uppercase text-muted-foreground">
+              Últimos jogos {mandoSel !== "geral" ? `(${mandoSel === "casa" ? "em casa" : "fora"})` : ""}
+            </p>
+            <div className="mt-1 flex gap-1.5">
+              {([0, 5, 10] as const).map((n) => (
+                <button key={n} onClick={() => setJanela(n)} className={chip(janela === n)}>
+                  {n === 0 ? "Temporada" : `Últimos ${n}`}
                 </button>
               ))}
             </div>
@@ -325,6 +359,7 @@ export function PlayersTable({
               setStatusSel([7]);
               setClubeSel([]);
               setMandoSel("geral");
+              setJanela(0);
               setMinJogos(0);
             }}
             className="brutal-sm bg-destructive px-2 py-0.5 font-condensed text-[11px] uppercase text-destructive-foreground"
@@ -431,7 +466,10 @@ export function PlayersTable({
         {!dados.length && <p className="p-4 text-center text-sm text-muted-foreground">Nenhum jogador encontrado.</p>}
       </div>
       <p className="text-[10px] text-muted-foreground">
-        Toque no cabeçalho para ordenar; passe o mouse para ver o nome completo da coluna. Scouts somam a temporada.
+        Toque no cabeçalho para ordenar; passe o mouse para ver o nome completo da coluna.{" "}
+        {janela
+          ? `Scouts e média refletem os últimos ${janela} jogos${mandoSel === "geral" ? "" : mandoSel === "casa" ? " em casa" : " fora"}.`
+          : "Scouts somam a temporada."}
       </p>
     </div>
   );

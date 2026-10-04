@@ -420,6 +420,13 @@ export async function cedimentoPorSubcategoria(
 
 /* ---------------- Snapshot da liga (tabela de jogadores) ---------------- */
 
+export type HistoricoJogo = {
+  rodada: number;
+  pontuacao: number;
+  scout: Scout;
+  mando: "casa" | "fora";
+};
+
 export type JogadorSnapshot = {
   jogos: number;
   mediaMando: number;
@@ -428,6 +435,8 @@ export type JogadorSnapshot = {
   desarmes: number;
   defesas: number;
   ultimas: Array<{ rodada: number; pontuacao: number; scout: Scout }>;
+  /** Histórico por jogo (todas as rodadas lidas), do mais recente ao mais antigo. */
+  historico: HistoricoJogo[];
 };
 
 export type LigaSnapshot = {
@@ -491,7 +500,11 @@ export async function ligaSnapshot(
 
   // Jogadores: últimas `janela` partidas no mando da próxima rodada
   const porAtleta = new Map<number, Row[]>();
+  const porAtletaAll = new Map<number, Row[]>();
   for (const row of rows) {
+    const arrAll = porAtletaAll.get(row.atleta_id) ?? [];
+    arrAll.push(row);
+    porAtletaAll.set(row.atleta_id, arrAll);
     const m = mando[String(row.clube_id)];
     if (!m || row.mando !== m) continue;
     const arr = porAtleta.get(row.atleta_id) ?? [];
@@ -510,6 +523,9 @@ export async function ligaSnapshot(
       desarmes: soma("DS"),
       defesas: soma("DE"),
       ultimas: ultimos.map((g) => ({ rodada: g.rodada, pontuacao: g.pontuacao, scout: g.scout })),
+      historico: (porAtletaAll.get(Number(id)) ?? [])
+        .sort((a, b) => b.rodada - a.rodada)
+        .map((g) => ({ rodada: g.rodada, pontuacao: g.pontuacao, scout: g.scout, mando: g.mando })),
     };
   }
 
