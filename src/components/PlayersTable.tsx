@@ -121,20 +121,40 @@ export function PlayersTable({
 
   const subDe = (a: Atleta) => (a.posicao_id === 1 ? "GOL" : (subs?.[String(a.atleta_id)] ?? "—"));
 
+  /** Jogos da janela selecionada (respeita o mando escolhido). */
+  const jogosJanela = (a: Atleta) => {
+    if (!janela) return null;
+    const h = linhas[String(a.atleta_id)]?.historico ?? [];
+    const filtrados = mandoSel === "geral" ? h : h.filter((g) => g.mando === mandoSel);
+    return filtrados.slice(0, janela);
+  };
+
+  const scoutsJanela = (a: Atleta): Record<string, number> => {
+    const jogos = jogosJanela(a) ?? [];
+    const acc: Record<string, number> = {};
+    for (const j of jogos) {
+      for (const [k, v] of Object.entries(j.scout ?? {})) acc[k] = (acc[k] ?? 0) + v;
+    }
+    return acc;
+  };
+
   const valor = (a: Atleta, col: string): number | null => {
     const l = linhas[String(a.atleta_id)];
-    const sc = a.scout ?? {};
+    const sc = janela ? scoutsJanela(a) : (a.scout ?? {});
     switch (col) {
       case "jogos":
-        return a.jogos_num ?? 0;
+        return janela ? (jogosJanela(a)?.length ?? 0) : (a.jogos_num ?? 0);
       case "preco":
         return a.preco_num;
       case "variacao":
         return a.variacao_num;
       case "ultima":
         return a.pontos_num;
-      case "media":
-        return a.media_num;
+      case "media": {
+        if (!janela) return a.media_num;
+        const jogos = jogosJanela(a) ?? [];
+        return jogos.length ? jogos.reduce((s, g) => s + g.pontuacao, 0) / jogos.length : null;
+      }
       case "mando":
         return l ? l.mediaMando : null;
       case "cedida": {
