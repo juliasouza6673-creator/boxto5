@@ -523,6 +523,9 @@ export async function ligaSnapshot(
       desarmes: soma("DS"),
       defesas: soma("DE"),
       ultimas: ultimos.map((g) => ({ rodada: g.rodada, pontuacao: g.pontuacao, scout: g.scout })),
+      historico: (porAtletaAll.get(Number(id)) ?? [])
+        .sort((a, b) => b.rodada - a.rodada)
+        .map((g) => ({ rodada: g.rodada, pontuacao: g.pontuacao, scout: g.scout, mando: g.mando })),
     };
   }
 
