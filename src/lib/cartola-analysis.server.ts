@@ -420,6 +420,13 @@ export async function cedimentoPorSubcategoria(
 
 /* ---------------- Snapshot da liga (tabela de jogadores) ---------------- */
 
+export type HistoricoJogo = {
+  rodada: number;
+  pontuacao: number;
+  scout: Scout;
+  mando: "casa" | "fora";
+};
+
 export type JogadorSnapshot = {
   jogos: number;
   mediaMando: number;
@@ -428,6 +435,8 @@ export type JogadorSnapshot = {
   desarmes: number;
   defesas: number;
   ultimas: Array<{ rodada: number; pontuacao: number; scout: Scout }>;
+  /** Histórico por jogo (todas as rodadas lidas), do mais recente ao mais antigo. */
+  historico: HistoricoJogo[];
 };
 
 export type LigaSnapshot = {
