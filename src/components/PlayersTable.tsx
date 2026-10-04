@@ -12,6 +12,7 @@ export type LinhaTabela = {
   assistencias: number;
   desarmes: number;
   defesas: number;
+  historico?: Array<{ rodada: number; pontuacao: number; scout: Record<string, number>; mando: "casa" | "fora" }>;
 };
 
 type Props = {
@@ -93,6 +94,7 @@ export function PlayersTable({
   const [statusSel, setStatusSel] = useState<number[]>([7]);
   const [clubeSel, setClubeSel] = useState<number[]>([]);
   const [mandoSel, setMandoSel] = useState<"geral" | "casa" | "fora">("geral");
+  const [janela, setJanela] = useState(0); // 0 = temporada inteira; 5/10 = últimos N jogos no mando
   const [minJogos, setMinJogos] = useState(0);
   const [modos, setModos] = useState<Modo[]>(["gerais"]);
   const [soFav, setSoFav] = useState(false);
