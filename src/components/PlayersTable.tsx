@@ -359,6 +359,7 @@ export function PlayersTable({
               setStatusSel([7]);
               setClubeSel([]);
               setMandoSel("geral");
+              setJanela(0);
               setMinJogos(0);
             }}
             className="brutal-sm bg-destructive px-2 py-0.5 font-condensed text-[11px] uppercase text-destructive-foreground"
