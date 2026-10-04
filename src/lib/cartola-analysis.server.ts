@@ -500,7 +500,11 @@ export async function ligaSnapshot(
 
   // Jogadores: últimas `janela` partidas no mando da próxima rodada
   const porAtleta = new Map<number, Row[]>();
+  const porAtletaAll = new Map<number, Row[]>();
   for (const row of rows) {
+    const arrAll = porAtletaAll.get(row.atleta_id) ?? [];
+    arrAll.push(row);
+    porAtletaAll.set(row.atleta_id, arrAll);
     const m = mando[String(row.clube_id)];
     if (!m || row.mando !== m) continue;
     const arr = porAtleta.get(row.atleta_id) ?? [];
