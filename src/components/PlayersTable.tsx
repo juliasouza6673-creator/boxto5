@@ -466,7 +466,10 @@ export function PlayersTable({
         {!dados.length && <p className="p-4 text-center text-sm text-muted-foreground">Nenhum jogador encontrado.</p>}
       </div>
       <p className="text-[10px] text-muted-foreground">
-        Toque no cabeçalho para ordenar; passe o mouse para ver o nome completo da coluna. Scouts somam a temporada.
+        Toque no cabeçalho para ordenar; passe o mouse para ver o nome completo da coluna.{" "}
+        {janela
+          ? `Scouts e média refletem os últimos ${janela} jogos${mandoSel === "geral" ? "" : mandoSel === "casa" ? " em casa" : " fora"}.`
+          : "Scouts somam a temporada."}
       </p>
     </div>
   );
