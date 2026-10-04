@@ -142,7 +142,7 @@ export function PlayersTable({
       case "mpv":
         return a.minimo_para_valorizar ?? null;
       case "SG":
-        return SG_POS.includes(a.posicao_id) ? (sc.SG ?? 0) : 0;
+        return SG_POS.includes(a.posicao_id) ? (sc['SG'] ?? 0) : 0;
       default:
         if (SO_GOL.includes(col) && a.posicao_id !== 1) return null;
         return sc[col] ?? 0;
