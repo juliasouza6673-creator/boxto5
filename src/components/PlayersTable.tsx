@@ -194,7 +194,7 @@ export function PlayersTable({
       })
       .slice(0, 200);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [atletas, posSel, subSel, statusSel, clubeSel, mandoSel, minJogos, soFav, favoritos, busca, ordem, linhas, cedidas, adversario, subs, mando]);
+  }, [atletas, posSel, subSel, statusSel, clubeSel, mandoSel, janela, minJogos, soFav, favoritos, busca, ordem, linhas, cedidas, adversario, subs, mando]);
 
   const ordenar = (col: string) =>
     setOrdem((o) => (o.col === col ? { col, dir: o.dir === "desc" ? "asc" : "desc" } : { col, dir: "desc" }));
@@ -243,6 +243,18 @@ export function PlayersTable({
               {(["geral", "casa", "fora"] as const).map((m) => (
                 <button key={m} onClick={() => setMandoSel(m)} className={chip(mandoSel === m)}>
                   {m === "geral" ? "Geral" : m === "casa" ? "Em casa" : "Fora"}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="font-condensed text-[10px] uppercase text-muted-foreground">
+              Últimos jogos {mandoSel !== "geral" ? `(${mandoSel === "casa" ? "em casa" : "fora"})` : ""}
+            </p>
+            <div className="mt-1 flex gap-1.5">
+              {([0, 5, 10] as const).map((n) => (
+                <button key={n} onClick={() => setJanela(n)} className={chip(janela === n)}>
+                  {n === 0 ? "Temporada" : `Últimos ${n}`}
                 </button>
               ))}
             </div>
