@@ -113,6 +113,38 @@ export function HomeSection({
     return { clubes: clubes5.slice(0, 3), subs: subs5.slice(0, 3) };
   }, [cedidas]);
 
+  /** Quadro "Quem Mais Cede" segmentado por posição. */
+  const GRUPOS_QUADRO: Array<{ sigla: string; subs: string[] }> = [
+    { sigla: "GOL", subs: ["GOL"] },
+    { sigla: "LD", subs: ["LD"] },
+    { sigla: "LE", subs: ["LE"] },
+    { sigla: "ZAG", subs: ["ZAD", "ZAE"] },
+    { sigla: "MEI", subs: ["VOL", "MCO", "MD", "ME"] },
+    { sigla: "ATA", subs: ["PD", "PE", "CA"] },
+  ];
+
+  const cedePorPosicao = useMemo(() => {
+    const media = (arr: number[]) => arr.reduce((s, v) => s + v, 0) / (arr.length || 1);
+    return GRUPOS_QUADRO.map(({ sigla, subs: grupo }) => {
+      const porClube = new Map<number, number[]>();
+      for (const [chave, v] of Object.entries(cedidas)) {
+        const [clube, sub] = chave.split("-");
+        if (!clube || !sub || !grupo.includes(sub) || !v.amostra) continue;
+        const arr = porClube.get(Number(clube)) ?? [];
+        arr.push(v.mediaCedida);
+        porClube.set(Number(clube), arr);
+      }
+      return {
+        sigla,
+        top: [...porClube.entries()]
+          .map(([id, arr]) => ({ id, media: media(arr) }))
+          .sort((a, b) => b.media - a.media)
+          .slice(0, 3),
+      };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cedidas]);
+
   type Dica = { tipo: string; conteudo: React.ReactNode };
   const dicas = useMemo(() => {
     const out: Dica[] = [];
@@ -177,28 +209,16 @@ export function HomeSection({
     return out;
   }, [topSG, topPicks, cedimentoDestaques, clubes]);
 
-  // Intercala dicas e notícias
-  const feed = useMemo(() => {
-    const out: Array<{ dica?: (typeof dicas)[number]; noticia?: NewsItem }> = [];
-    const maior = Math.max(dicas.length, noticias.length);
-    for (let i = 0; i < maior; i++) {
-      const d = dicas[i];
-      const n = noticias[i];
-      if (d) out.push({ dica: d });
-      if (n) out.push({ noticia: n });
-    }
-    return out;
-  }, [dicas, noticias]);
-
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
-      <div className="space-y-4">
+    <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
+      {/* Lateral esquerda — Atualização de Mercado */}
+      <aside className="space-y-3">
         <section className="brutal p-3">
-          <h2 className="font-display text-xl">Atualização de Mercado</h2>
+          <h2 className="font-display text-lg">Atualização de Mercado</h2>
           <p className="text-[11px] text-muted-foreground">
-            Mudanças de status desde a sua última visita — atenção antes do fechamento.
+            Mudanças de status desde a sua última visita.
           </p>
-          <div className="mt-2 grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-2 space-y-1.5">
             {mudancas.map((m) => {
               const a = atletasById.get(m.atleta_id);
               if (!a) return null;
@@ -206,7 +226,7 @@ export function HomeSection({
                 <button
                   key={m.atleta_id}
                   onClick={() => onOpenPlayer(a)}
-                  className="flex items-center gap-2 brutal-sm bg-panel-2 px-2 py-1.5 text-left"
+                  className="flex w-full items-center gap-2 brutal-sm bg-panel-2 px-2 py-1.5 text-left"
                 >
                   {playerPhoto(a) ? (
                     <img src={playerPhoto(a)!} alt="" className="h-7 w-7 rounded-full object-cover" />
@@ -214,7 +234,9 @@ export function HomeSection({
                     <span className="h-7 w-7 rounded-full bg-secondary" />
                   )}
                   <span className="min-w-0">
-                    <span className="block truncate text-xs font-bold">{a.apelido}</span>
+                    <span className="block truncate text-xs font-bold">
+                      {POS_ABREV[a.posicao_id]} {a.apelido}
+                    </span>
                     <span className="block text-[10px]">
                       <span className="text-muted-foreground">{clubes[String(a.clube_id)]?.abreviacao} · </span>
                       <span className={corStatus(m.de)}>{STATUS_NOME[m.de] ?? "-"}</span>
@@ -233,24 +255,19 @@ export function HomeSection({
             )}
           </div>
         </section>
+      </aside>
 
+      <div className="space-y-4">
         <section className="brutal p-3">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="flex-1 font-display text-xl">Recomendações para a Rodada</h2>
+            <h2 className="flex-1 font-display text-xl">Principais Jogadores</h2>
             <button
               onClick={onOpenBest}
               className="brutal-sm bg-primary px-2 py-1 font-condensed text-[11px] uppercase text-primary-foreground"
             >
               Melhores Opções →
             </button>
-            <button
-              onClick={onOpenBestSG}
-              className="brutal-sm bg-accent px-2 py-1 font-condensed text-[11px] uppercase text-accent-foreground"
-            >
-              Melhores SG →
-            </button>
           </div>
-
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             {topPicks.map((p) => {
               const a = atletasById.get(p.atleta_id);
@@ -263,10 +280,9 @@ export function HomeSection({
                   <img src={escudo(clubes[String(p.clube_id)], "45x45")} alt="" className="h-7 w-7 object-contain" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-xs font-bold">
-                      {p.apelido}
+                      {POS_ABREV[p.posicao_id]} {p.apelido}
                       <span className="ml-1 font-normal text-muted-foreground">
-                        {POS_ABREV[p.posicao_id]}
-                        {subs?.[String(p.atleta_id)] ? ` · ${subs[String(p.atleta_id)]}` : ""}
+                        {subs?.[String(p.atleta_id)] ? `· ${subs[String(p.atleta_id)]}` : ""}
                       </span>
                     </span>
                     <span className="block text-[10px]">
@@ -281,10 +297,25 @@ export function HomeSection({
               <p className="text-[11px] text-muted-foreground">Calculando as melhores opções da rodada…</p>
             )}
           </div>
+        </section>
 
+        <section className="brutal p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="flex-1 font-display text-xl">Principais SGs</h2>
+            <button
+              onClick={onOpenBestSG}
+              className="brutal-sm bg-accent px-2 py-1 font-condensed text-[11px] uppercase text-accent-foreground"
+            >
+              Ver todos →
+            </button>
+          </div>
           <div className="mt-3 space-y-1.5">
             {topSG.map((s) => (
-              <div key={`${s.clube_id}`} className="flex items-center gap-2 brutal-sm bg-panel px-2 py-1.5">
+              <button
+                key={`${s.clube_id}`}
+                onClick={onOpenBestSG}
+                className="flex w-full items-center gap-2 brutal-sm bg-panel px-2 py-1.5"
+              >
                 <img src={escudo(clubes[String(s.clube_casa_id)], "30x30")} alt="" className="h-6 w-6 object-contain" />
                 <span className="font-condensed text-[11px] uppercase">x</span>
                 <img
@@ -292,78 +323,73 @@ export function HomeSection({
                   alt=""
                   className="h-6 w-6 object-contain"
                 />
-                <span className="flex-1 text-[11px]">
+                <span className="flex-1 text-left text-[11px]">
                   SG de <b>{clubes[String(s.clube_id)]?.abreviacao}</b>
                 </span>
                 <span className="font-display text-sm text-primary">{s.chance}%</span>
+              </button>
+            ))}
+            {!topSG.length && <p className="text-[11px] text-muted-foreground">Calculando os melhores SGs…</p>}
+          </div>
+        </section>
+
+        <section className="brutal p-3">
+          <h2 className="font-display text-xl">Quem Mais Cede</h2>
+          <p className="text-[11px] text-muted-foreground">
+            Média cedida por posição (top 3 times) nas últimas 5 rodadas, no mando.
+          </p>
+          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {cedePorPosicao.map((g) => (
+              <div key={g.sigla} className="brutal-sm bg-panel px-2 py-1.5">
+                <p className="font-condensed text-[11px] uppercase tracking-widest text-primary">{g.sigla}</p>
+                <ul className="mt-1 space-y-1">
+                  {g.top.map((c) => (
+                    <li key={c.id} className="flex items-center gap-1.5 text-[11px]">
+                      <img src={escudo(clubes[String(c.id)], "30x30")} alt="" className="h-4 w-4 object-contain" />
+                      <span className="flex-1 truncate">{clubes[String(c.id)]?.abreviacao}</span>
+                      <b>{fmt(c.media, 1)}</b>
+                    </li>
+                  ))}
+                  {!g.top.length && <li className="text-[10px] text-muted-foreground">Sem dados</li>}
+                </ul>
               </div>
             ))}
           </div>
         </section>
 
         <section className="space-y-2">
-          <h2 className="font-display text-xl">Top Dicas e Atualizações</h2>
+          <h2 className="font-display text-xl">Top Dicas</h2>
           <div className="grid gap-2 sm:grid-cols-2">
-            {feed.map((f, i) =>
-              f.dica ? (
-                <article key={`d-${i}`} className="brutal bg-accent p-3 text-accent-foreground">
-                  <p className="font-condensed text-[10px] uppercase tracking-widest">{f.dica.tipo}</p>
-                  <p className="mt-1 text-[12px] leading-snug">{f.dica.conteudo}</p>
-                </article>
-              ) : (
-                <a
-                  key={`n-${i}`}
-                  href={f.noticia!.link}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="brutal p-3 hover:bg-panel-2"
-                >
-                  <p className="font-condensed text-[10px] uppercase tracking-widest text-muted-foreground">
-                    Notícia do Brasileirão
-                  </p>
-                  <p className="mt-1 font-condensed text-sm uppercase leading-snug">{f.noticia!.titulo}</p>
-                </a>
-              ),
-            )}
-            {!feed.length && (
+            {dicas.map((d, i) => (
+              <article key={`d-${i}`} className="brutal bg-accent p-3 text-accent-foreground">
+                <p className="font-condensed text-[10px] uppercase tracking-widest">{d.tipo}</p>
+                <p className="mt-1 text-[12px] leading-snug">{d.conteudo}</p>
+              </article>
+            ))}
+            {!dicas.length && (
               <p className="brutal p-4 text-center text-sm text-muted-foreground">Reunindo dicas da rodada…</p>
             )}
           </div>
         </section>
-      </div>
 
-      <aside className="space-y-3">
-        <div className="brutal bg-ink p-3 text-panel">
-          <h3 className="font-display text-xl text-panel">Quem mais cede</h3>
-          <ul className="mt-2 space-y-1.5">
-            {cedimentoDestaques.clubes.map((c) => (
-              <li key={c.id} className="flex items-center gap-2 text-[11px] text-panel">
-                <img src={escudo(clubes[String(c.id)], "30x30")} alt="" className="h-5 w-5 object-contain" />
-                <span className="flex-1">{clubes[String(c.id)]?.nome}</span>
-                <b>{fmt(c.media, 1)}</b>
-              </li>
+        <section className="space-y-2">
+          <h2 className="font-display text-xl">Notícias do Brasileirão</h2>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {noticias.map((n, i) => (
+              <a key={`n-${i}`} href={n.link} target="_blank" rel="noreferrer" className="brutal p-3 hover:bg-panel-2">
+                <p className="font-condensed text-[10px] uppercase tracking-widest text-muted-foreground">
+                  {n.fonte}
+                  {n.data ? ` · ${n.data}` : ""}
+                </p>
+                <p className="mt-1 font-condensed text-sm uppercase leading-snug">{n.titulo}</p>
+              </a>
             ))}
-            {!cedimentoDestaques.clubes.length && (
-              <li className="text-[11px] text-panel/70">Calculando cedimentos…</li>
+            {!noticias.length && (
+              <p className="brutal p-4 text-center text-sm text-muted-foreground">Buscando notícias…</p>
             )}
-          </ul>
-        </div>
-        <div className="brutal p-3">
-          <h3 className="font-display text-base">Subcategorias mais exploradas</h3>
-          <ul className="mt-2 space-y-1">
-            {cedimentoDestaques.subs.map((s) => (
-              <li key={s.sub} className="flex justify-between text-[11px]">
-                <span>{s.sub === "GOL" ? "Goleiros" : SUB_NOME[s.sub as Sub]}</span>
-                <b>{fmt(s.media, 1)}</b>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-2 text-[10px] text-muted-foreground">
-            Média de pontos cedidos pelos adversários da rodada, considerando as últimas 5 partidas no mando.
-            {Object.keys(adversario).length ? "" : " Aguardando a tabela da rodada."}
-          </p>
-        </div>
-      </aside>
+          </div>
+        </section>
+      </div>
     </div>
   );
 }
