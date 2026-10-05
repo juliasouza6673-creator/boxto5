@@ -113,6 +113,38 @@ export function HomeSection({
     return { clubes: clubes5.slice(0, 3), subs: subs5.slice(0, 3) };
   }, [cedidas]);
 
+  /** Quadro "Quem Mais Cede" segmentado por posição. */
+  const GRUPOS_QUADRO: Array<{ sigla: string; subs: string[] }> = [
+    { sigla: "GOL", subs: ["GOL"] },
+    { sigla: "LD", subs: ["LD"] },
+    { sigla: "LE", subs: ["LE"] },
+    { sigla: "ZAG", subs: ["ZAD", "ZAE"] },
+    { sigla: "MEI", subs: ["VOL", "MCO", "MD", "ME"] },
+    { sigla: "ATA", subs: ["PD", "PE", "CA"] },
+  ];
+
+  const cedePorPosicao = useMemo(() => {
+    const media = (arr: number[]) => arr.reduce((s, v) => s + v, 0) / (arr.length || 1);
+    return GRUPOS_QUADRO.map(({ sigla, subs: grupo }) => {
+      const porClube = new Map<number, number[]>();
+      for (const [chave, v] of Object.entries(cedidas)) {
+        const [clube, sub] = chave.split("-");
+        if (!clube || !grupo.includes(sub) || !v.amostra) continue;
+        const arr = porClube.get(Number(clube)) ?? [];
+        arr.push(v.mediaCedida);
+        porClube.set(Number(clube), arr);
+      }
+      return {
+        sigla,
+        top: [...porClube.entries()]
+          .map(([id, arr]) => ({ id, media: media(arr) }))
+          .sort((a, b) => b.media - a.media)
+          .slice(0, 3),
+      };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cedidas]);
+
   type Dica = { tipo: string; conteudo: React.ReactNode };
   const dicas = useMemo(() => {
     const out: Dica[] = [];
