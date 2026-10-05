@@ -209,19 +209,6 @@ export function HomeSection({
     return out;
   }, [topSG, topPicks, cedimentoDestaques, clubes]);
 
-  // Intercala dicas e notícias
-  const feed = useMemo(() => {
-    const out: Array<{ dica?: (typeof dicas)[number]; noticia?: NewsItem }> = [];
-    const maior = Math.max(dicas.length, noticias.length);
-    for (let i = 0; i < maior; i++) {
-      const d = dicas[i];
-      const n = noticias[i];
-      if (d) out.push({ dica: d });
-      if (n) out.push({ noticia: n });
-    }
-    return out;
-  }, [dicas, noticias]);
-
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
       <div className="space-y-4">
