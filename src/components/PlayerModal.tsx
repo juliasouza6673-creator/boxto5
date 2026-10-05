@@ -583,7 +583,16 @@ export function PlayerModal({ atleta, atletas, clubes, onOpenPlayer, onSell, onA
                 <h4 className="text-center font-display tracking-wide">
                   Jogadores da posição contra {adversario?.abreviacao}
                 </h4>
-                {ok.cedimentos.jogos.map((g, i) => (
+                {Object.values(
+                  ok.cedimentos.jogos.reduce<Record<string, (typeof ok.cedimentos.jogos)[number]>>((acc, g) => {
+                    const k = String(g.rodada);
+                    if (!acc[k] || g.pontuacao > acc[k].pontuacao) acc[k] = g;
+                    return acc;
+                  }, {}),
+                )
+                  .sort((x, y) => y.pontuacao - x.pontuacao)
+                  .slice(0, 5)
+                  .map((g, i) => (
                   <div key={`${g.apelido}-${i}`} className="rounded-lg border border-border bg-panel-2 px-3 py-2">
                     <div className="mb-1 flex items-center gap-2">
                       <img
