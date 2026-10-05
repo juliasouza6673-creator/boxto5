@@ -129,7 +129,7 @@ export function HomeSection({
       const porClube = new Map<number, number[]>();
       for (const [chave, v] of Object.entries(cedidas)) {
         const [clube, sub] = chave.split("-");
-        if (!clube || !grupo.includes(sub) || !v.amostra) continue;
+        if (!clube || !sub || !grupo.includes(sub) || !v.amostra) continue;
         const arr = porClube.get(Number(clube)) ?? [];
         arr.push(v.mediaCedida);
         porClube.set(Number(clube), arr);
