@@ -3,16 +3,21 @@ import type { Atleta, Clube } from "@/lib/cartola-types";
 import { POS_ABREV } from "@/lib/cartola-types";
 import { escudo, fmt, playerPhoto } from "@/lib/cartola-ui";
 import { SUB_NOME, useSubcategorias, type Sub } from "@/lib/subcategorias";
+import type { LinhaTabela } from "@/components/PlayersTable";
 
 type Props = {
   favoritos: number[];
   atletas: Atleta[];
   clubes: Record<string, Clube>;
   onOpenPlayer: (a: Atleta) => void;
+  linhas?: Record<string, LinhaTabela>;
+  cedidas?: Record<string, { mediaCedida: number }>;
+  adversario?: Record<string, number>;
+  mando?: Record<string, "casa" | "fora">;
 };
 
 const LINHAS: Array<{ key: string; label: string; get: (a: Atleta) => number }> = [
-  { key: "media", label: "Média", get: (a) => a.media_num ?? 0 },
+  { key: "media", label: "Média geral", get: (a) => a.media_num ?? 0 },
   { key: "pontos", label: "Última pontuação", get: (a) => a.pontos_num ?? 0 },
   { key: "jogos", label: "Jogos", get: (a) => a.jogos_num ?? 0 },
   { key: "preco", label: "Preço (C$)", get: (a) => a.preco_num ?? 0 },
@@ -21,9 +26,36 @@ const LINHAS: Array<{ key: string; label: string; get: (a: Atleta) => number }> 
 
 const num = (v: number) => (Number.isInteger(v) ? String(v) : fmt(v, 2));
 
-export function PlayersCompare({ favoritos, atletas, clubes, onOpenPlayer }: Props) {
+export function PlayersCompare({
+  favoritos,
+  atletas,
+  clubes,
+  onOpenPlayer,
+  linhas = {},
+  cedidas = {},
+  adversario = {},
+  mando = {},
+}: Props) {
   const { data: subs } = useSubcategorias();
   const [selecionados, setSelecionados] = useState<number[]>([]);
+
+  const subDe = (a: Atleta) => (a.posicao_id === 1 ? "GOL" : (subs?.[String(a.atleta_id)] ?? ""));
+  const mediaMandoDe = (a: Atleta, m: "casa" | "fora") => {
+    const h = (linhas[String(a.atleta_id)]?.historico ?? []).filter((g) => g.mando === m);
+    return h.length ? h.reduce((s, g) => s + g.pontuacao, 0) / h.length : 0;
+  };
+  const extras: Array<{ label: string; get: (a: Atleta) => number }> = [
+    { label: "Média em casa", get: (a) => mediaMandoDe(a, "casa") },
+    { label: "Média fora", get: (a) => mediaMandoDe(a, "fora") },
+    { label: "Média no mando da rodada", get: (a) => linhas[String(a.atleta_id)]?.mediaMando ?? 0 },
+    {
+      label: "Média cedida pelo rival",
+      get: (a) => {
+        const adv = adversario[String(a.clube_id)];
+        return adv !== undefined ? (cedidas[`${adv}-${subDe(a)}`]?.mediaCedida ?? 0) : 0;
+      },
+    },
+  ];
 
   const favs = useMemo(
     () => favoritos.map((id) => atletas.find((a) => a.atleta_id === id)).filter((a): a is Atleta => !!a),
