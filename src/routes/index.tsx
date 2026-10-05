@@ -736,7 +736,16 @@ function Index() {
           {isAdmin && <SubcategoriaAdmin atletas={atletas} />}
 
           {subTab === "comparativo" && (
-            <PlayersCompare favoritos={favoritos} atletas={atletas} clubes={clubes} onOpenPlayer={setAberto} />
+            <PlayersCompare
+              favoritos={favoritos}
+              atletas={atletas}
+              clubes={clubes}
+              onOpenPlayer={setAberto}
+              linhas={snap?.ok ? snap.jogadores : {}}
+              cedidas={snap?.ok ? snap.cedidas : {}}
+              adversario={snap?.ok ? snap.adversario : {}}
+              mando={snap?.ok ? snap.mando : {}}
+            />
           )}
 
           {subTab === "atletas" && (
