@@ -148,6 +148,7 @@ export function PlayersCompare({
             </thead>
             <tbody>
               {[...LINHAS.map((l) => ({ label: l.label, values: escolhidos.map(l.get) })),
+                ...extras.map((l) => ({ label: l.label, values: escolhidos.map(l.get) })),
                 ...scoutKeys.map((k) => ({
                   label: k,
                   values: escolhidos.map((a) => a.scout?.[k] ?? 0),
