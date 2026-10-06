@@ -217,7 +217,7 @@ export function HomeSection({
         <section className="brutal p-3">
           <h2 className="font-display text-lg">Atualização de Mercado</h2>
           <p className="text-[11px] text-muted-foreground">
-            Mudanças de status desde a sua última visita.
+            Quem virou Provável ou saiu de Provável desde a sua última visita.
           </p>
           <div className="mt-2 space-y-1.5">
             {mudancas.map((m) => {
