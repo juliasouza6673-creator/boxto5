@@ -44,13 +44,14 @@ export function BestRoundModal({ clubes, atletas, onOpenPlayer, onClose }: Props
         <div className="space-y-5 overflow-y-auto p-3 sm:p-4">
           {isLoading && <p className="py-8 text-center text-muted-foreground">Cruzando médias e cedimentos…</p>}
           {data?.ok &&
-            [1, 2, 3, 4, 5, 6].map((pos) => {
-              const todos = data.byPos[String(pos)] ?? [];
-              const aberto = expandido[String(pos)];
+            ORDEM_SUBS.map((sub) => {
+              const todos = data.bySub[sub] ?? [];
+              const aberto = expandido[sub];
               const lista = aberto ? todos : todos.slice(0, 5);
+              if (!todos.length) return null;
               return (
-                <section key={pos}>
-                  <h3 className="mb-2 font-display tracking-wide text-accent">{POS_NOME[pos]}</h3>
+                <section key={sub}>
+                  <h3 className="mb-2 font-display tracking-wide text-accent">{ROTULO_SUB[sub]}</h3>
                   <div className="space-y-1.5">
                     {lista.map((p) => {
                       const adv = clubes[String(p.adversario)];
