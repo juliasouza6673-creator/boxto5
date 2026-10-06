@@ -307,7 +307,7 @@ export function CedimentosMap({ clubes, atletas, producao, onOpenPlayer }: Props
                 </h3>
                 <p className="text-[11px] text-muted-foreground">
                   Média cedida {fmt(alvo.mediaCedida, 2)} · amostra {alvo.amostra}
-                  {alvo.usouFallback ? " (posição geral)" : ""}
+                 
                 </p>
               </div>
               <button onClick={() => setDetalhe(null)}>✕</button>
@@ -342,7 +342,7 @@ export function CedimentosMap({ clubes, atletas, producao, onOpenPlayer }: Props
                   </button>
                 );
               })}
-              {!alvo.jogos.length && <p className="py-6 text-center text-sm text-muted-foreground">Sem dados.</p>}
+              {!alvo.jogos.length && <p className="py-6 text-center text-sm text-muted-foreground">Não há números suficientes do rival cedeu.</p>}
             </div>
           </div>
         </div>
