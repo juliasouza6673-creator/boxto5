@@ -2,10 +2,17 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getBestOfRound } from "@/lib/cartola.functions";
-import { useSubcategorias } from "@/lib/subcategorias";
+import { useSubcategorias, SUB_NOME, type Sub } from "@/lib/subcategorias";
 import type { Atleta, Clube } from "@/lib/cartola-types";
-import { POS_NOME } from "@/lib/cartola-types";
 import { escudo, fmt } from "@/lib/cartola-ui";
+
+/** Ordem de exibição das subcategorias no modal. */
+const ORDEM_SUBS = ["GOL", "LD", "LE", "ZAD", "ZAE", "VOL", "MD", "ME", "MCO", "PD", "PE", "CA", "TEC"] as const;
+const ROTULO_SUB: Record<string, string> = {
+  GOL: "Goleiro",
+  TEC: "Técnico",
+  ...(SUB_NOME as Record<Sub, string>),
+};
 
 type Props = {
   clubes: Record<string, Clube>;
@@ -107,7 +114,7 @@ export function BestRoundModal({ clubes, atletas, onOpenPlayer, onClose }: Props
                     {!todos.length && <p className="text-xs text-muted-foreground">Sem opções com amostra suficiente.</p>}
                     {todos.length > 5 && (
                       <button
-                        onClick={() => setExpandido((e) => ({ ...e, [String(pos)]: !aberto }))}
+                        onClick={() => setExpandido((e) => ({ ...e, [sub]: !aberto }))}
                         className="w-full rounded-lg border border-dashed border-border py-1.5 text-[11px] text-muted-foreground hover:border-accent hover:text-accent"
                       >
                         {aberto ? "Ver menos" : "Ver mais opções"}
