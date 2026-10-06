@@ -55,7 +55,16 @@ export function CedimentosMap({ clubes, atletas, producao, onOpenPlayer }: Props
   const rival = rivalId ? clubes[String(rivalId)] : undefined;
   const alvo = detalhe && mapa ? mapa[detalhe] : null;
 
-  // Provável do rival em cada subcategoria (prováveis > dúvidas, depois maior média)
+  const [escolher, setEscolher] = useState<string | null>(null);
+  const [manualPorRival, setManualPorRival] = useState<Record<string, Record<string, number>>>({});
+  const manual = rivalId ? (manualPorRival[String(rivalId)] ?? {}) : {};
+
+  const elencoRival = useMemo(
+    () => (rivalId ? atletas.filter((a) => a.clube_id === rivalId).sort((a, b) => b.media_num - a.media_num) : []),
+    [atletas, rivalId],
+  );
+
+  // Provável do rival em cada subcategoria (escolha manual > prováveis > dúvidas, depois maior média)
   const provavelDoRival = useMemo(() => {
     const out: Record<string, Atleta> = {};
     if (!rivalId) return out;
@@ -66,8 +75,12 @@ export function CedimentosMap({ clubes, atletas, producao, onOpenPlayer }: Props
       const s = a.posicao_id === 1 ? "GOL" : subs?.[String(a.atleta_id)];
       if (s && !out[s]) out[s] = a;
     }
+    for (const [s, id] of Object.entries(manual)) {
+      const a = atletas.find((x) => x.atleta_id === id);
+      if (a) out[s] = a;
+    }
     return out;
-  }, [atletas, rivalId, subs]);
+  }, [atletas, rivalId, subs, manual]);
 
   // Destaque: maior soma de produção + cedimento
   const destaque = useMemo(() => {
@@ -240,6 +253,43 @@ export function CedimentosMap({ clubes, atletas, producao, onOpenPlayer }: Props
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {escolher && rivalId && (
+        <div
+          className="fixed inset-0 z-[96] flex items-center justify-center bg-background/85 p-3"
+          onClick={() => setEscolher(null)}
+        >
+          <div className="flex max-h-[85vh] w-full max-w-md flex-col brutal bg-panel" onClick={(e) => e.stopPropagation()}>
+            <header className="flex items-center justify-between border-b-2 border-border p-3">
+              <h3 className="font-display text-lg">
+                Escolher {escolher === "GOL" ? "Goleiro" : SUB_NOME[escolher as Sub]} · {rival?.nome}
+              </h3>
+              <button onClick={() => setEscolher(null)}>✕</button>
+            </header>
+            <div className="flex-1 space-y-1 overflow-y-auto p-3">
+              {elencoRival.map((a) => {
+                const s = a.posicao_id === 1 ? "GOL" : (subs?.[String(a.atleta_id)] ?? "—");
+                return (
+                  <button
+                    key={a.atleta_id}
+                    onClick={() => {
+                      setManualPorRival((m) => ({
+                        ...m,
+                        [String(rivalId)]: { ...(m[String(rivalId)] ?? {}), [escolher]: a.atleta_id },
+                      }));
+                      setEscolher(null);
+                    }}
+                    className={`flex w-full items-center justify-between brutal-sm px-2 py-1.5 text-left text-xs ${s === escolher ? "bg-primary text-primary-foreground" : "bg-panel-2"}`}
+                  >
+                    <span className="font-bold">[{s}] {a.apelido}</span>
+                    <span>méd {fmt(a.media_num, 1)}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
