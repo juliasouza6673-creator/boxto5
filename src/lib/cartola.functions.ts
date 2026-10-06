@@ -281,7 +281,18 @@ export const getBestOfRound = createServerFn({ method: "POST" })
       byPos[String(posId)] = scored.sort((x, y) => y.score - x.score).slice(0, 10);
     }
 
-    return { ok: true as const, rodada, byPos };
+    // Agrupa as mesmas sugestões pela subcategoria real do atleta (CA, PE, PD, MCO, VOL, LD, LE, ZAD, ZAE, GOL, TEC).
+    const bySub: Record<string, BestPick[]> = {};
+    for (const lista of Object.values(byPos)) {
+      for (const p of lista) {
+        const sub = p.posicao_id === 1 ? "GOL" : p.posicao_id === 6 ? "TEC" : subs[String(p.atleta_id)];
+        if (!sub) continue;
+        (bySub[sub] ??= []).push(p);
+      }
+    }
+    for (const lista of Object.values(bySub)) lista.sort((x, y) => y.score - x.score);
+
+    return { ok: true as const, rodada, byPos, bySub };
   } catch (err) {
     return { ok: false as const, error: (err as Error).message };
   }

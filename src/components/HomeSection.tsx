@@ -43,7 +43,8 @@ function useMudancasDeStatus(atletas: Atleta[]) {
       if (prev?.statuses) {
         for (const a of atletas) {
           const antes = prev.statuses[String(a.atleta_id)];
-          if (antes !== undefined && antes !== a.status_id) {
+          // Só interessa quem virou Provável ou quem era Provável e mudou de status.
+          if (antes !== undefined && antes !== a.status_id && (antes === 7 || a.status_id === 7)) {
             novas.push({ atleta_id: a.atleta_id, de: antes, para: a.status_id, em: agora });
           }
         }
@@ -216,7 +217,7 @@ export function HomeSection({
         <section className="brutal p-3">
           <h2 className="font-display text-lg">Atualização de Mercado</h2>
           <p className="text-[11px] text-muted-foreground">
-            Mudanças de status desde a sua última visita.
+            Quem virou Provável ou saiu de Provável desde a sua última visita.
           </p>
           <div className="mt-2 space-y-1.5">
             {mudancas.map((m) => {
