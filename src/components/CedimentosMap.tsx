@@ -149,8 +149,8 @@ export function CedimentosMap({ clubes, atletas, producao, onOpenPlayer }: Props
             }}
           >
             {POSICOES.map((p) => {
-              const c = mapa[p.sub];
-              if (!c) return null;
+              const cRaw = mapa[p.sub];
+              const c = cRaw && cRaw.amostra > 0 ? cRaw : null;
               const a = provavelDoRival[p.sub];
               const pr = a ? (producao[String(a.atleta_id)] ?? {}) : {};
               const gol = p.sub === "GOL";
@@ -165,7 +165,7 @@ export function CedimentosMap({ clubes, atletas, producao, onOpenPlayer }: Props
                     {p.nome}
                   </span>
                   <button
-                    onClick={() => setDetalhe(p.sub)}
+                    onClick={() => (a ? c && setDetalhe(p.sub) : setEscolher(p.sub))}
                     className={`w-[78px] rounded-md border-2 bg-[#F2ECDC] p-1 text-center text-[#111] shadow-[3px_3px_0_#000] sm:w-[118px] sm:p-1.5 ${isDest ? "border-accent" : "border-foreground"}`}
                   >
                     <span className="block font-condensed text-[9px] font-bold uppercase sm:hidden">{p.sub}</span>
@@ -175,8 +175,20 @@ export function CedimentosMap({ clubes, atletas, producao, onOpenPlayer }: Props
                       className="mx-auto h-7 w-7 rounded-full border border-foreground bg-white object-cover sm:h-10 sm:w-10"
                     />
                     <span className="block truncate text-[9px] font-bold sm:text-[11px]">
-                      {a ? `[${p.sub}] ${a.apelido}` : "Sem provável"}
+                      {a ? `[${p.sub}] ${a.apelido}` : "+ Escolher jogador"}
                     </span>
+                    {a && manual[p.sub] && (
+                      <span
+                        role="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEscolher(p.sub);
+                        }}
+                        className="block text-[8px] font-bold underline"
+                      >
+                        trocar
+                      </span>
+                    )}
                     {isDest && (
                       <span className="block text-[8px] font-bold text-accent-foreground">★ DESTAQUE</span>
                     )}
@@ -198,23 +210,31 @@ export function CedimentosMap({ clubes, atletas, producao, onOpenPlayer }: Props
                     </div>
                     <div className="mt-0.5 rounded bg-[#e2e0da] px-0.5 py-0.5">
                       <span className="block font-condensed text-[7px] font-bold uppercase text-[#444] sm:text-[8px]">
-                        Rival cedeu 🔍
+                        Rival cedeu {c ? "🔍" : ""}
                       </span>
-                      <div className="flex justify-around text-[9px] font-bold sm:text-[11px]">
-                        {gol ? (
-                          <>
-                            <span>{c.defesas}<small className="block text-[6px] text-[#555]">DE</small></span>
-                            <span>{c.sgCedidos}<small className="block text-[6px] text-[#555]">SG</small></span>
-                          </>
-                        ) : (
-                          <>
-                            <span className="text-[#C0392B]">{c.gols}<small className="block text-[6px] text-[#555]">GOL</small></span>
-                            <span>{c.assistencias}<small className="block text-[6px] text-[#555]">AST</small></span>
-                            <span>{c.desarmes}<small className="block text-[6px] text-[#555]">DS</small></span>
-                          </>
-                        )}
-                      </div>
-                      <span className="block text-[8px] font-bold sm:text-[10px]">MC {fmt(c.mediaCedida, 1)}</span>
+                      {c ? (
+                        <>
+                          <div className="flex justify-around text-[9px] font-bold sm:text-[11px]">
+                            {gol ? (
+                              <>
+                                <span>{c.defesas}<small className="block text-[6px] text-[#555]">DE</small></span>
+                                <span>{c.sgCedidos}<small className="block text-[6px] text-[#555]">SG</small></span>
+                              </>
+                            ) : (
+                              <>
+                                <span className="text-[#C0392B]">{c.gols}<small className="block text-[6px] text-[#555]">GOL</small></span>
+                                <span>{c.assistencias}<small className="block text-[6px] text-[#555]">AST</small></span>
+                                <span>{c.desarmes}<small className="block text-[6px] text-[#555]">DS</small></span>
+                              </>
+                            )}
+                          </div>
+                          <span className="block text-[8px] font-bold sm:text-[10px]">MC {fmt(c.mediaCedida, 1)}</span>
+                        </>
+                      ) : (
+                        <span className="block text-[7px] leading-tight text-[#555] sm:text-[9px]">
+                          Não há números suficientes do rival cedeu
+                        </span>
+                      )}
                     </div>
                   </button>
                 </div>
