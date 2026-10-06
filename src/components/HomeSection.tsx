@@ -43,7 +43,8 @@ function useMudancasDeStatus(atletas: Atleta[]) {
       if (prev?.statuses) {
         for (const a of atletas) {
           const antes = prev.statuses[String(a.atleta_id)];
-          if (antes !== undefined && antes !== a.status_id) {
+          // Só interessa quem virou Provável ou quem era Provável e mudou de status.
+          if (antes !== undefined && antes !== a.status_id && (antes === 7 || a.status_id === 7)) {
             novas.push({ atleta_id: a.atleta_id, de: antes, para: a.status_id, em: agora });
           }
         }
