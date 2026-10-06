@@ -388,9 +388,9 @@ export async function cedimentoPorSubcategoria(
     const porSub = registros.filter(
       (x) => (sub === "GOL" ? x.posicao_id === 1 : subs[String(x.atleta_id)] === sub),
     );
-    // Sempre respeita a subcategoria; só cai para a posição geral sem amostra suficiente.
-    const usouFallback = sub !== "GOL" && porSub.length < AMOSTRA_MINIMA;
-    const amostra = usouFallback ? geral : porSub;
+    // Subcategoria 100% estrita: nunca mistura outras subcategorias.
+    const usouFallback = false;
+    const amostra = porSub;
     out[sub] = {
       sub,
       amostra: amostra.length,
@@ -559,8 +559,9 @@ export async function ligaSnapshot(
       const porSub = contra.filter((x) =>
         sub === "GOL" ? x.posicao_id === 1 : subs[String(x.atleta_id)] === sub,
       );
-      const usouFallback = sub !== "GOL" && porSub.length < AMOSTRA_MINIMA;
-      const amostra = usouFallback ? geral : porSub;
+      const usouFallback = false;
+      void geral;
+      const amostra = porSub;
       cedidas[`${clube}-${sub}`] = {
         mediaCedida:
           [...amostra].sort((a, b) => b.pontuacao - a.pontuacao).slice(0, 5).reduce((s, g) => s + g.pontuacao, 0) / 5,
