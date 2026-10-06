@@ -7,7 +7,7 @@
 - [ ] 4. Mapa de Cedimentos: janela de 5 rodadas, ordem recente→antiga, jogadores clicáveis com time, jogador provável por posição (vindo de Confrontos), comparativo com scouts/pontuações dos últimos 5 no mando, layout mobile compacto
 - [x] 7. Jogadores: filtros múltiplos (posição, subcategoria, status), tabela com colunas ordenáveis (escudo, sub, nome, jogos, média, média cedida, média no mando, G, A, DS, DE) + estrela de favorito
 - [x] 5. Comparativo: casa/fora, média geral, média no mando, média cedida
-- [ ] 3. Melhores Opções por subcategoria
+- [x] 3. Melhores Opções por subcategoria
 - [x] 1. Início: remover aba Notícias; "Top Dicas e Atualizações" intercalando SG, cedimentos altos, time que mais cede, subcategoria da rodada + notícias de Cartola/Brasileirão
 
 ## Novos pedidos (05/09)
