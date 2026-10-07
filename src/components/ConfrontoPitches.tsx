@@ -37,7 +37,7 @@ function sugestao(elenco: Atleta[]): Atleta[] {
   const out: Atleta[] = [];
   for (const a of elenco.filter(em).sort((x, y) => y.media_num - x.media_num)) {
     if ((cota[a.posicao_id] ?? 0) > 0) {
-      cota[a.posicao_id]--;
+      cota[a.posicao_id] = (cota[a.posicao_id] ?? 0) - 1;
       out.push(a);
     }
   }

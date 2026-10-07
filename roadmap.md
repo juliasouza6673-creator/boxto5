@@ -20,4 +20,4 @@
 - [x] Tabela Jogadores: filtro de janela "Últimos jogos" (Temporada / Últimos 5 / Últimos 10) respeitando o mando (geral/casa/fora); scouts, jogos e média refletem a janela
 - [x] Card do jogador (PlayerModal): cedimentos estritos por posição/subcategoria, desduplicação por rodada, top 5, sigla de posição
 - [x] Início: "Principais Jogadores" e "Principais SGs" clicáveis, "Quem Mais Cede" por posição (GOL, LD, LE, ZAG, MEI, ATA), Atualizações de Mercado na lateral, Top Dicas separado de Notícias do Brasileirão
-- [ ] Confrontos: campinhos verticais com prováveis por posição, gaveta de desfalques, editor admin drag-and-drop
+- [x] Confrontos: campinhos verticais com prováveis por posição, gaveta de desfalques, editor admin drag-and-drop
