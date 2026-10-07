@@ -23,7 +23,7 @@ import { PlayersCompare } from "@/components/PlayersCompare";
 import { SubcategoriaAdmin } from "@/components/SubcategoriaAdmin";
 import { HomeSection } from "@/components/HomeSection";
 import { PlayersTable } from "@/components/PlayersTable";
-import { ProbableLineup } from "@/components/ProbableLineups";
+import { ConfrontoPitches } from "@/components/ConfrontoPitches";
 import { useIsAdmin, useSubcategorias } from "@/lib/subcategorias";
 import { aplicarStatus, useStatusOverrides } from "@/lib/status";
 import { getTabelaJogadores } from "@/lib/cartola.functions";
@@ -476,176 +476,14 @@ function Index() {
         <section className="grid gap-4 lg:grid-cols-[1fr_320px]">
           <div className="space-y-3">
             <h2 className="font-display text-xl">Confrontos da rodada {rodadaAtual}</h2>
-            {!mercadoAberto && !emManutencao && (
-              <p className="font-condensed text-[11px] uppercase text-primary">
-                Clique no confronto e confira as parciais
-              </p>
-            )}
-            <div className="grid gap-2 sm:grid-cols-2">
-              {partidasOrdenadas.map((p, i) => {
-                const d = p.partida_data ? new Date(p.partida_data.replace(" ", "T")) : null;
-                const ativo = match === p;
-                return (
-                  <button
-                    key={i}
-                    onClick={() => setMatch(ativo ? null : p)}
-                    className={`brutal px-3 py-2 text-left ${ativo ? "bg-accent" : "bg-panel"}`}
-                  >
-                    <span className="flex items-center justify-center gap-2">
-                      <img src={escudo(clubes[String(p.clube_casa_id)], "45x45")} alt="" className="h-8 w-8 object-contain" />
-                      <span className="font-condensed text-xs uppercase">
-                        {clubes[String(p.clube_casa_id)]?.abreviacao} x {clubes[String(p.clube_visitante_id)]?.abreviacao}
-                      </span>
-                      <img
-                        src={escudo(clubes[String(p.clube_visitante_id)], "45x45")}
-                        alt=""
-                        className="h-8 w-8 object-contain"
-                      />
-                    </span>
-                    <span className="mt-1 block text-center text-[10px] text-muted-foreground">
-                      {d
-                        ? d.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
-                        : "Data a definir"}
-                      {p.local ? ` · ${p.local}` : ""}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {match && (
-              <article className="brutal p-3">
-                <header className="border-b-2 border-dashed border-border pb-2 text-center">
-                  <div className="flex items-center justify-center gap-4">
-                    <img src={escudo(clubes[String(match.clube_casa_id)], "60x60")} alt="" className="h-12 w-12 object-contain" />
-                    <span className="font-display text-lg">x</span>
-                    <img
-                      src={escudo(clubes[String(match.clube_visitante_id)], "60x60")}
-                      alt=""
-                      className="h-12 w-12 object-contain"
-                    />
-                  </div>
-                  <p className="mt-1 font-condensed text-xs uppercase">
-                    {matchData
-                      ? matchData.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
-                      : "Data a definir"}
-                    {match.local ? ` · ${match.local}` : ""}
-                  </p>
-                </header>
-                <div className="space-y-3 pt-3">
-                  {linhas.map((linha) => {
-                    const max = Math.max(linha.casa.length, linha.fora.length);
-                    if (!max) return null;
-                    return (
-                      <section key={linha.pos}>
-                        <p className="mb-1 text-center font-condensed text-[11px] uppercase tracking-wide text-muted-foreground">
-                          {POS_NOME[linha.pos]}
-                        </p>
-                        <div className="space-y-1.5">
-                          {Array.from({ length: max }).map((_, i) => (
-                            <div key={i} className="grid grid-cols-2 gap-2">
-                              {[linha.casa[i], linha.fora[i]].map((a, side) =>
-                                a ? (
-                                  <button
-                                    key={side}
-                                    onClick={() => setAberto(a)}
-                                    className="flex items-center gap-2 brutal-sm bg-panel-2 px-2 py-2 text-left"
-                                  >
-                                    {playerPhoto(a) ? (
-                                      <img src={playerPhoto(a)!} alt="" className="h-8 w-8 rounded-full object-cover" />
-                                    ) : (
-                                      <span className="h-8 w-8 rounded-full bg-secondary" />
-                                    )}
-                                    <span className="min-w-0 flex-1">
-                                      <span className="block truncate text-xs font-bold">{a.apelido}</span>
-                                      {!mercadoAberto ? (
-                                        (() => {
-                                          const pts = parciais?.ok ? parciais.pontos[String(a.atleta_id)] : undefined;
-                                          if (pts === undefined)
-                                            return <span className="block text-[10px] text-muted-foreground">sem parcial</span>;
-                                          const sc = parciais?.ok ? (parciais.scouts?.[String(a.atleta_id)] ?? {}) : {};
-                                          const mno = computeMNO({
-                                            rodada: rodadaAtual,
-                                            preco_atual: a.preco_num,
-                                            pontos_ultima: a.pontos_num,
-                                            jogou_ultima: a.pontos_num !== 0,
-                                            jogos_disputados: a.jogos_num,
-                                          }).mno_estimado;
-                                          const val = liveValuation(pts, mno);
-                                          return (
-                                            <>
-                                              <span
-                                                className={`block text-[11px] font-bold ${pts >= 0 ? "text-success" : "text-destructive"}`}
-                                              >
-                                                {fmt(pts, 1)} pts
-                                              </span>
-                                              <span className="flex flex-wrap gap-1 text-[9px]">
-                                                {Object.entries(sc)
-                                                  .filter(([, v]) => v > 0)
-                                                  .map(([k, v]) => (
-                                                    <span key={k} className={isScoutNegative(k) ? "text-destructive" : "text-success"}>
-                                                      {k} {v}
-                                                    </span>
-                                                  ))}
-                                              </span>
-                                              <span
-                                                className={`block text-[10px] font-bold ${val.status === "VALORIZANDO" ? "text-success" : "text-destructive"}`}
-                                              >
-                                                {val.texto_exibicao}
-                                              </span>
-                                            </>
-                                          );
-                                        })()
-                                      ) : (
-                                        <>
-                                          <span className="block text-[10px] text-muted-foreground">
-                                            {POS_ABREV[a.posicao_id]} · méd {fmt(a.media_num, 1)}
-                                          </span>
-                                          {insights?.ok && (
-                                            <span className="block text-[10px]">
-                                              <span className="text-success">
-                                                cede {fmt(insights.cedida[`${side === 0 ? "casa" : "fora"}-${a.posicao_id}`] ?? 0, 1)}
-                                              </span>{" "}
-                                              <span className="text-foreground/80">
-                                                mando {fmt(insights.mediaMando[String(a.atleta_id)] ?? 0, 1)}
-                                              </span>
-                                            </span>
-                                          )}
-                                        </>
-                                      )}
-                                    </span>
-                                  </button>
-                                ) : (
-                                  <span key={side} />
-                                ),
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </section>
-                    );
-                  })}
-                </div>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <ProbableLineup
-                    rodada={rodadaAtual}
-                    clubeId={match.clube_casa_id}
-                    clubes={clubes}
-                    atletas={atletas}
-                    isAdmin={!!isAdmin}
-                    onOpenPlayer={setAberto}
-                  />
-                  <ProbableLineup
-                    rodada={rodadaAtual}
-                    clubeId={match.clube_visitante_id}
-                    clubes={clubes}
-                    atletas={atletas}
-                    isAdmin={!!isAdmin}
-                    onOpenPlayer={setAberto}
-                  />
-                </div>
-              </article>
-            )}
+            <ConfrontoPitches
+              partidas={partidasOrdenadas}
+              rodada={rodadaAtual}
+              clubes={clubes}
+              atletas={atletas}
+              isAdmin={!!isAdmin}
+              onOpenPlayer={setAberto}
+            />
           </div>
 
           <aside className="space-y-3">
