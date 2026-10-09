@@ -322,6 +322,7 @@ export type CedimentoSub = {
   mediaCedida: number;
   /** Média cedida considerando a posição geral (para comparação com a subcategoria). */
   mediaCedidaGeral: number;
+  mediaBasicaCedida: number;
   jogos: Array<{ rodada: number; atleta_id: number | undefined; apelido: string; clube_id: number; pontuacao: number; scout: Scout }>;
 };
 
@@ -402,6 +403,7 @@ export async function cedimentoPorSubcategoria(
       sgCedidos: amostra.filter((g) => (g.scout['SG'] ?? 0) > 0).length,
       mediaCedida: mediaTop5(amostra),
       mediaCedidaGeral: mediaTop5(geral),
+      mediaBasicaCedida: mediaBasica(amostra, posGeral),
       jogos: amostra
         .sort((a, b) => b.rodada - a.rodada || b.pontuacao - a.pontuacao)
         .slice(0, 20)
@@ -545,7 +547,7 @@ export async function ligaSnapshot(
     const mandoAdv = mando[clubeStr] === "casa" ? "fora" : "casa";
     // rodadas em que esse clube jogou nesse mando (as 5 mais recentes)
     const rodadasClube = [
-      ...new Set(rows.filter((x) => x.adversario === clube && x.mando !== mandoAdv).map((x) => x.rodada)),
+      ...new Set(rows.filter((x) => x.adversario === clube && x.mando === mandoAdv).map((x) => x.rodada)),
     ]
       .sort((a, b) => b - a)
       .slice(0, janela);
@@ -574,3 +576,57 @@ export async function ligaSnapshot(
   return { rodada: rodadaAtual, mando, adversario, jogadores, cedidas };
 }
 
+
+/* ---------------- Pontuação esperada (regra única do app) ---------------- */
+
+/** Média básica cedida: média por jogo dos scouts básicos ponderados. */
+export function mediaBasica(jogos: Array<{ scout: Scout }>, posicaoId: number): number {
+  if (!jogos.length) return 0;
+  const w = posicaoId === 1 ? BASIC_GK : BASIC_LINE;
+  const tot = jogos.reduce((s, g) => {
+    let v = 0;
+    for (const [k, p] of Object.entries(w)) v += (g.scout[k] ?? 0) * p;
+    return s + v;
+  }, 0);
+  return tot / jogos.length;
+}
+
+/** Em quantas das últimas 5 rodadas o atleta fez gol ou assistência. */
+export async function recorrenciaOfensiva(atletaId: number, rodadaAtual: number): Promise<number> {
+  let n = 0;
+  let lidas = 0;
+  for (let r = rodadaAtual - 1; r >= 1 && lidas < 5; r--) {
+    const pts = await getPontuados(r).catch(() => null);
+    if (!pts) continue;
+    lidas++;
+    const sc = pts.atletas?.[String(atletaId)]?.scout ?? {};
+    if ((sc["G"] ?? 0) > 0 || (sc["A"] ?? 0) > 0) n++;
+  }
+  return n;
+}
+
+/** Em quantos dos últimos 5 jogos (qualquer mando) o clube não marcou gol (cedeu SG). */
+export async function sgCedidosRecentes(clubeId: number, rodadaAtual: number): Promise<number> {
+  const [c, f] = await Promise.all([teamForm(clubeId, "casa", rodadaAtual, 5), teamForm(clubeId, "fora", rodadaAtual, 5)]);
+  const ult = [...c.jogos, ...f.jogos].sort((a, b) => b.rodada - a.rodada).slice(0, 5);
+  return ult.filter((g) => g.golsPro === 0).length;
+}
+
+/**
+ * (média cedida + média no mando + média básica cedida) / 3
+ * +1 para meias/atacantes com G ou A em 3+ das últimas 5 rodadas
+ * +1 para GOL/LAT/ZAG quando o adversário cedeu SG em mais de 2 das últimas 5.
+ */
+export function calcPontuacaoEsperada(p: {
+  posicaoId: number;
+  mediaCedida: number;
+  mediaMando: number;
+  mediaBasicaCedida: number;
+  recOfensiva: number;
+  sgAdv: number;
+}): { valor: number; bonusOfensivo: boolean; bonusSG: boolean } {
+  const base = (p.mediaCedida + p.mediaMando + p.mediaBasicaCedida) / 3;
+  const bonusOfensivo = (p.posicaoId === 4 || p.posicaoId === 5) && p.recOfensiva >= 3;
+  const bonusSG = [1, 2, 3].includes(p.posicaoId) && p.sgAdv > 2;
+  return { valor: base + (bonusOfensivo ? 1 : 0) + (bonusSG ? 1 : 0), bonusOfensivo, bonusSG };
+}
