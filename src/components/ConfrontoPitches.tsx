@@ -8,7 +8,7 @@ import { escudo, playerPhoto } from "@/lib/cartola-ui";
 import { useSubcategorias } from "@/lib/subcategorias";
 import campinhoBg from "@/assets/campinho7.png.asset.json";
 
-type Pos = { id: number; x: number; y: number };
+type Pos = { id: number; x: number; y: number; alt?: number | null };
 
 /** Posição padrão (em %) por subcategoria/posição — atacando para cima. */
 const SUB_POS: Record<string, [number, number]> = {
@@ -18,6 +18,45 @@ const SUB_POS: Record<string, [number, number]> = {
 const POS_DEF: Record<number, [number, number]> = { 1: [50, 90], 2: [15, 64], 3: [50, 74], 4: [50, 45], 5: [50, 14] };
 
 const em = (a: Atleta) => a.status_id === 7 || a.status_id === 2;
+
+/** Slots do 4-3-3 padrão (mesma disposição do campinho). */
+const SLOTS_433: Array<{ pos: number; subs: string[]; xy: [number, number] }> = [
+  { pos: 1, subs: ["GOL"], xy: [50, 89] },
+  { pos: 2, subs: ["LD"], xy: [84, 68] },
+  { pos: 3, subs: ["ZAD"], xy: [62, 74] },
+  { pos: 3, subs: ["ZAE"], xy: [38, 74] },
+  { pos: 2, subs: ["LE"], xy: [16, 68] },
+  { pos: 4, subs: ["MD"], xy: [76, 47] },
+  { pos: 4, subs: ["VOL"], xy: [50, 54] },
+  { pos: 4, subs: ["ME", "MCO"], xy: [24, 47] },
+  { pos: 5, subs: ["PD"], xy: [80, 20] },
+  { pos: 5, subs: ["CA"], xy: [50, 13] },
+  { pos: 5, subs: ["PE"], xy: [20, 20] },
+];
+
+function layout433(list: Atleta[], subs: Record<string, string> | undefined): Pos[] {
+  const livres = SLOTS_433.map((s) => ({ ...s, ocupado: false }));
+  const out: Pos[] = [];
+  const resto: Atleta[] = [];
+  // 1ª passada: encaixa pela subcategoria exata
+  for (const a of list) {
+    const sub = a.posicao_id === 1 ? "GOL" : subs?.[String(a.atleta_id)]?.toUpperCase();
+    const slot = livres.find((s) => !s.ocupado && s.pos === a.posicao_id && sub && s.subs.includes(sub));
+    if (slot) {
+      slot.ocupado = true;
+      out.push({ id: a.atleta_id, x: slot.xy[0], y: slot.xy[1] });
+    } else resto.push(a);
+  }
+  // 2ª passada: qualquer slot livre da mesma posição; senão, posição padrão
+  for (const a of resto) {
+    const slot = livres.find((s) => !s.ocupado && s.pos === a.posicao_id);
+    if (slot) {
+      slot.ocupado = true;
+      out.push({ id: a.atleta_id, x: slot.xy[0], y: slot.xy[1] });
+    } else out.push(...layout([a], subs));
+  }
+  return out;
+}
 
 function layout(list: Atleta[], subs: Record<string, string> | undefined): Pos[] {
   const usados: Record<string, number> = {};
@@ -120,11 +159,11 @@ function TeamPitch({
     if (salvo && salvo.length) {
       if (typeof salvo[0] === "number") {
         const list = (salvo as number[]).map((id) => byId.get(id)).filter((a): a is Atleta => !!a);
-        return layout(list, subs);
+        return layout433(list, subs);
       }
       return salvo as Pos[];
     }
-    return layout(sugestao(elenco), subs);
+    return layout433(sugestao(elenco), subs);
   }, [salvo, byId, elenco, subs]);
 
   const [editando, setEditando] = useState(false);
@@ -132,6 +171,7 @@ function TeamPitch({
   const [busca, setBusca] = useState("");
   const [gaveta, setGaveta] = useState(false);
   const [salvando, setSalvando] = useState(false);
+  const [selecionado, setSelecionado] = useState<number | null>(null);
   const campo = useRef<HTMLDivElement>(null);
   const arrastando = useRef<number | null>(null);
 
@@ -154,7 +194,12 @@ function TeamPitch({
 
   const salvar = async () => {
     setSalvando(true);
-    const atletasJson = draft.map((p) => ({ id: p.id, x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10 }));
+    const atletasJson = draft.map((p) => ({
+      id: p.id,
+      x: Math.round(p.x * 10) / 10,
+      y: Math.round(p.y * 10) / 10,
+      ...(p.alt ? { alt: p.alt } : {}),
+    }));
     const { error } = await supabase
       .from("probable_lineups")
       .upsert({ rodada, clube_id: clubeId, atletas: atletasJson }, { onConflict: "rodada,clube_id" });
@@ -205,23 +250,29 @@ function TeamPitch({
           return (
             <div
               key={p.id}
-              className="group absolute flex w-16 -translate-x-1/2 -translate-y-1/2 flex-col items-center"
+              className="group absolute flex w-20 -translate-x-1/2 -translate-y-1/2 flex-col items-center"
               style={{ left: `${p.x}%`, top: `${p.y}%`, cursor: editando ? "grab" : "pointer" }}
               onPointerDown={(e) => {
                 if (!editando) return;
                 e.preventDefault();
                 arrastando.current = p.id;
+                setSelecionado(p.id);
               }}
               onClick={() => !editando && onOpenPlayer(a)}
             >
               <span
-                className={`relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border-[3px] bg-panel ${a.status_id === 2 ? "border-warning" : a.status_id === 7 ? "border-success" : "border-destructive"}`}
+                className={`relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-full border-[3px] bg-panel ${editando && selecionado === p.id ? "ring-2 ring-accent " : ""}${a.status_id === 2 ? "border-warning" : a.status_id === 7 ? "border-success" : "border-destructive"}`}
               >
-                <img src={foto ?? escudo(clube, "45x45")} alt="" className={foto ? "h-full w-full object-cover" : "h-6 w-6 object-contain"} draggable={false} />
+                <img src={foto ?? escudo(clube, "45x45")} alt="" className={foto ? "h-full w-full object-cover" : "h-8 w-8 object-contain"} draggable={false} />
               </span>
-              <span className="mt-0.5 max-w-full truncate bg-ink px-1 text-[9px] font-bold leading-tight text-panel">
-                {subs?.[String(a.atleta_id)] ?? POS_ABREV[a.posicao_id]} {a.apelido}
+              <span className="mt-0.5 max-w-full truncate bg-ink px-1 text-[10px] font-bold leading-tight text-panel">
+                {a.apelido}
               </span>
+              {a.status_id === 2 && p.alt && byId.get(p.alt) && (
+                <span className="max-w-full truncate bg-ink/60 px-1 text-[9px] italic leading-tight text-panel/80">
+                  ({byId.get(p.alt)!.apelido})
+                </span>
+              )}
               {editando && (
                 <button
                   onPointerDown={(e) => e.stopPropagation()}
@@ -244,6 +295,56 @@ function TeamPitch({
 
       {editando && (
         <div className="mt-2 space-y-1">
+          {selecionado !== null && byId.get(selecionado) && (() => {
+            const sel = byId.get(selecionado)!;
+            const pos = draft.find((x) => x.id === selecionado);
+            const mesmos = elenco.filter((a) => a.atleta_id !== sel.atleta_id).sort((a, b) => a.apelido.localeCompare(b.apelido));
+            return (
+              <div className="space-y-1 brutal-sm bg-panel-2 p-2 text-xs">
+                <p className="font-bold">{sel.apelido}</p>
+                <label className="block">
+                  <span className="font-condensed text-[10px] uppercase">Trocar jogador</span>
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      const novo = Number(e.target.value);
+                      if (!novo) return;
+                      setDraft((d) => d.filter((x) => x.id !== novo).map((x) => (x.id === selecionado ? { ...x, id: novo, alt: null } : x)));
+                      setSelecionado(novo);
+                    }}
+                    className="mt-0.5 w-full brutal-sm bg-panel px-1 py-1"
+                  >
+                    <option value="">Escolher…</option>
+                    {mesmos.map((a) => (
+                      <option key={a.atleta_id} value={a.atleta_id}>
+                        {POS_ABREV[a.posicao_id]} {a.apelido} · {STATUS_NOME[a.status_id] ?? "—"}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {sel.status_id === 2 && (
+                  <label className="block">
+                    <span className="font-condensed text-[10px] uppercase">Em dúvida com</span>
+                    <select
+                      value={pos?.alt ?? ""}
+                      onChange={(e) => {
+                        const alt = Number(e.target.value) || null;
+                        setDraft((d) => d.map((x) => (x.id === selecionado ? { ...x, alt } : x)));
+                      }}
+                      className="mt-0.5 w-full brutal-sm bg-panel px-1 py-1"
+                    >
+                      <option value="">Ninguém</option>
+                      {mesmos.map((a) => (
+                        <option key={a.atleta_id} value={a.atleta_id}>
+                          {POS_ABREV[a.posicao_id]} {a.apelido}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+              </div>
+            );
+          })()}
           <input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
@@ -275,7 +376,7 @@ function TeamPitch({
               Cancelar
             </button>
           </div>
-          <p className="text-[10px] text-muted-foreground">Arraste as bolinhas para posicionar. O que você salvar é o que todos veem.</p>
+          <p className="text-[10px] text-muted-foreground">Toque numa bolinha para trocar o jogador (ou marcar com quem está em dúvida) e arraste para posicionar. O que você salvar é o que todos veem.</p>
         </div>
       )}
 

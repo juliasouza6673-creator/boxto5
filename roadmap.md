@@ -21,3 +21,15 @@
 - [x] Card do jogador (PlayerModal): cedimentos estritos por posição/subcategoria, desduplicação por rodada, top 5, sigla de posição
 - [x] Início: "Principais Jogadores" e "Principais SGs" clicáveis, "Quem Mais Cede" por posição (GOL, LD, LE, ZAG, MEI, ATA), Atualizações de Mercado na lateral, Top Dicas separado de Notícias do Brasileirão
 - [x] Confrontos: campinhos verticais com prováveis por posição, gaveta de desfalques, editor admin drag-and-drop
+
+## Pedidos (09/10) — ordem menos→mais créditos
+- [ ] Pontuação esperada nova (card, Melhores Opções, Principais Jogadores)
+- [ ] Quem Mais Cede explicativo (GOL defesas/SG, DEF desarmes/SG, MEI/ATA gols/assist.)
+- [ ] Login Google
+- [ ] Confrontos: círculos maiores, só nome, 4-3-3
+- [ ] Mapa: clique na foto abre card, "Rival cedeu" abre histórico
+- [ ] Desfalques só da rodada
+- [ ] Início dinâmico: mercado 5 em 5, alternância Principais/Top Dicas
+- [ ] Dúvida com substituto sombreado (admin)
+- [ ] Editor admin no Mapa (trocar/mover/remover cards, salvar para todos)
+- [ ] Histórico 3 rodadas anteriores (Melhores Opções e SGs)

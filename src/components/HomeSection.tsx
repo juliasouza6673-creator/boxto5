@@ -8,13 +8,42 @@ import { POS_ABREV, POS_NOME, STATUS_NOME } from "@/lib/cartola-types";
 import { escudo, fmt, playerPhoto } from "@/lib/cartola-ui";
 import { SUB_NOME, useSubcategorias, type Sub } from "@/lib/subcategorias";
 
+type CedidaResumo = {
+  mediaCedida: number;
+  amostra: number;
+  usouFallback: boolean;
+  gols?: number;
+  assistencias?: number;
+  desarmes?: number;
+  defesas?: number;
+  sg?: number;
+};
+
+/** Contador que avança a cada `ms` milissegundos (para alternar listas). */
+function useTick(ms: number) {
+  const [t, setT] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setT((v) => v + 1), ms);
+    return () => clearInterval(id);
+  }, [ms]);
+  return t;
+}
+
+/** Fatia rotativa de `n` itens. */
+function janela<T>(arr: T[], n: number, tick: number): T[] {
+  if (arr.length <= n) return arr;
+  const pags = Math.ceil(arr.length / n);
+  const i = tick % pags;
+  return arr.slice(i * n, i * n + n);
+}
+
 type NewsItem = { titulo: string; link: string; data: string | null; fonte: string };
 
 type Props = {
   atletas: Atleta[];
   clubes: Record<string, Clube>;
   noticias: NewsItem[];
-  cedidas: Record<string, { mediaCedida: number; amostra: number; usouFallback: boolean }>;
+  cedidas: Record<string, CedidaResumo>;
   adversario: Record<string, number>;
   onOpenPlayer: (a: Atleta) => void;
   onOpenBest: () => void;
@@ -85,12 +114,18 @@ export function HomeSection({
   });
   const { data: sg } = useQuery({ queryKey: ["best-sg"], queryFn: () => sgFn(), staleTime: 15 * 60_000 });
 
+  const tick = useTick(7000);
+  // Alterna entre os 3 melhores de cada posição.
   const topPicks = useMemo(() => {
     if (!best?.ok) return [];
     return [1, 2, 3, 4, 5]
-      .map((p) => best.byPos[String(p)]?.[0])
+      .map((p) => {
+        const top3 = best.byPos[String(p)]?.slice(0, 3) ?? [];
+        return top3.length ? top3[tick % top3.length] : undefined;
+      })
       .filter((r): r is NonNullable<typeof r> => !!r);
-  }, [best]);
+  }, [best, tick]);
+  const mudancasVisiveis = janela(mudancas, 5, tick);
 
   const topSG = sg?.ok ? sg.ranking.slice(0, 3) : [];
 
@@ -127,19 +162,30 @@ export function HomeSection({
   const cedePorPosicao = useMemo(() => {
     const media = (arr: number[]) => arr.reduce((s, v) => s + v, 0) / (arr.length || 1);
     return GRUPOS_QUADRO.map(({ sigla, subs: grupo }) => {
-      const porClube = new Map<number, number[]>();
+      type Acc = { medias: number[]; gols: number; assistencias: number; desarmes: number; defesas: number; sg: number };
+      const porClube = new Map<number, Acc>();
       for (const [chave, v] of Object.entries(cedidas)) {
         const [clube, sub] = chave.split("-");
         if (!clube || !sub || !grupo.includes(sub) || !v.amostra) continue;
-        const arr = porClube.get(Number(clube)) ?? [];
-        arr.push(v.mediaCedida);
-        porClube.set(Number(clube), arr);
+        const acc = porClube.get(Number(clube)) ?? { medias: [], gols: 0, assistencias: 0, desarmes: 0, defesas: 0, sg: 0 };
+        acc.medias.push(v.mediaCedida);
+        acc.gols += v.gols ?? 0;
+        acc.assistencias += v.assistencias ?? 0;
+        acc.desarmes += v.desarmes ?? 0;
+        acc.defesas += v.defesas ?? 0;
+        acc.sg = Math.max(acc.sg, v.sg ?? 0);
+        porClube.set(Number(clube), acc);
       }
+      const tipo = sigla === "GOL" ? "gol" : sigla === "MEI" || sigla === "ATA" ? "ataque" : "defesa";
+      // Critério de desempate por setor: defesas (GOL), desarmes+SG (defesa), gols+assistências (ataque).
+      const chave = (c: Acc) =>
+        tipo === "gol" ? c.defesas + c.sg * 5 : tipo === "defesa" ? c.desarmes + c.sg * 5 : (c.gols + c.assistencias) * 5;
       return {
         sigla,
+        tipo,
         top: [...porClube.entries()]
-          .map(([id, arr]) => ({ id, media: media(arr) }))
-          .sort((a, b) => b.media - a.media)
+          .map(([id, c]) => ({ id, media: media(c.medias), ...c, rank: chave(c) * 0.5 + media(c.medias) }))
+          .sort((a, b) => b.rank - a.rank)
           .slice(0, 3),
       };
     });
@@ -219,8 +265,8 @@ export function HomeSection({
           <p className="text-[11px] text-muted-foreground">
             Quem virou Provável ou saiu de Provável desde a sua última visita.
           </p>
-          <div className="mt-2 space-y-1.5">
-            {mudancas.map((m) => {
+          <div key={`mv-${tick % Math.max(1, Math.ceil(mudancas.length / 5))}`} className="mt-2 space-y-1.5 animate-in fade-in slide-in-from-right-4 duration-500">
+            {mudancasVisiveis.map((m) => {
               const a = atletasById.get(m.atleta_id);
               if (!a) return null;
               return (
@@ -274,7 +320,7 @@ export function HomeSection({
               const a = atletasById.get(p.atleta_id);
               return (
                 <button
-                  key={p.atleta_id}
+                  key={`${p.posicao_id}-${p.atleta_id}`}
                   onClick={() => a && onOpenPlayer(a)}
                   className="flex items-center gap-2 brutal-sm bg-panel-2 px-2 py-2 text-left"
                 >
@@ -287,7 +333,7 @@ export function HomeSection({
                       </span>
                     </span>
                     <span className="block text-[10px]">
-                      mando {fmt(p.mediaMando, 1)} · cede {fmt(p.mediaCedida, 1)} · recorrência{" "}
+                      esperado {fmt(p.esperado, 1)} · mando {fmt(p.mediaMando, 1)} · cede {fmt(p.mediaCedida, 1)} · recorrência{" "}
                       {fmt(p.recorrencia, 0)}%
                     </span>
                   </span>
@@ -337,7 +383,8 @@ export function HomeSection({
         <section className="brutal p-3">
           <h2 className="font-display text-xl">Quem Mais Cede</h2>
           <p className="text-[11px] text-muted-foreground">
-            Média cedida por posição (top 3 times) nas últimas 5 rodadas, no mando.
+            Top 3 times que mais cedem por posição nas últimas 5 rodadas, no mando. Goleiros: defesas e SG. Laterais e
+            zagueiros: desarmes e SG. Meias e atacantes: gols e assistências.
           </p>
           <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
             {cedePorPosicao.map((g) => (
@@ -345,10 +392,19 @@ export function HomeSection({
                 <p className="font-condensed text-[11px] uppercase tracking-widest text-primary">{g.sigla}</p>
                 <ul className="mt-1 space-y-1">
                   {g.top.map((c) => (
-                    <li key={c.id} className="flex items-center gap-1.5 text-[11px]">
-                      <img src={escudo(clubes[String(c.id)], "30x30")} alt="" className="h-4 w-4 object-contain" />
-                      <span className="flex-1 truncate">{clubes[String(c.id)]?.abreviacao}</span>
-                      <b>{fmt(c.media, 1)}</b>
+                    <li key={c.id} className="text-[11px]">
+                      <span className="flex items-center gap-1.5">
+                        <img src={escudo(clubes[String(c.id)], "30x30")} alt="" className="h-4 w-4 object-contain" />
+                        <span className="flex-1 truncate font-bold">{clubes[String(c.id)]?.abreviacao}</span>
+                        <b>{fmt(c.media, 1)} pts</b>
+                      </span>
+                      <span className="block pl-5 text-[10px] text-muted-foreground">
+                        {g.tipo === "gol"
+                          ? `${c.defesas} defesas · ${c.sg} SG cedidos`
+                          : g.tipo === "defesa"
+                            ? `${c.desarmes} desarmes · ${c.sg} SG cedidos`
+                            : `${c.gols} gols · ${c.assistencias} assist.`}
+                      </span>
                     </li>
                   ))}
                   {!g.top.length && <li className="text-[10px] text-muted-foreground">Sem dados</li>}
@@ -361,7 +417,7 @@ export function HomeSection({
         <section className="space-y-2">
           <h2 className="font-display text-xl">Top Dicas</h2>
           <div className="grid gap-2 sm:grid-cols-2">
-            {dicas.map((d, i) => (
+            {janela(dicas, 4, tick).map((d, i) => (
               <article key={`d-${i}`} className="brutal bg-accent p-3 text-accent-foreground">
                 <p className="font-condensed text-[10px] uppercase tracking-widest">{d.tipo}</p>
                 <p className="mt-1 text-[12px] leading-snug">{d.conteudo}</p>

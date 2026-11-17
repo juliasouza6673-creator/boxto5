@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { lovable } from "@/integrations/lovable";
 
 export function AuthDialog({ onClose }: { onClose: () => void }) {
   const [mode, setMode] = useState<"login" | "signup">("login");
@@ -29,14 +30,13 @@ export function AuthDialog({ onClose }: { onClose: () => void }) {
   const google = async () => {
     setBusy(true);
     setMsg(null);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: window.location.origin },
-    });
-    if (error) {
-      setMsg(error.message);
+    const result = await lovable.auth.signInWithOAuth("google", { redirect_uri: window.location.origin });
+    if (result.error) {
+      setMsg(result.error instanceof Error ? result.error.message : String(result.error));
       setBusy(false);
+      return;
     }
+    if (!("redirected" in result && result.redirected)) onClose();
   };
 
   return (

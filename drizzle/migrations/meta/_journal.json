@@ -8,6 +8,13 @@
       "when": 1794949914939,
       "tag": "0000_restrict_public_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794950125664,
+      "tag": "0001_cedimento_layouts",
+      "breakpoints": true
     }
   ]
 }

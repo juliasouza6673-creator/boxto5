@@ -447,7 +447,18 @@ export type LigaSnapshot = {
   adversario: Record<string, number>;
   jogadores: Record<string, JogadorSnapshot>;
   /** chave `${clubeAdversario}-${sub}` -> média cedida na janela de 5 jogos do mando */
-  cedidas: Record<string, { mediaCedida: number; amostra: number; usouFallback: boolean }>;
+  cedidas: Record<string, CedidaResumo>;
+};
+
+export type CedidaResumo = {
+  mediaCedida: number;
+  amostra: number;
+  usouFallback: boolean;
+  gols: number;
+  assistencias: number;
+  desarmes: number;
+  defesas: number;
+  sg: number;
 };
 
 /**
@@ -541,7 +552,7 @@ export async function ligaSnapshot(
   const posicaoDaSub: Record<string, number> = {
     LD: 2, LE: 2, ZAD: 3, ZAE: 3, VOL: 4, MCO: 4, MD: 4, ME: 4, PD: 5, PE: 5, CA: 5,
   };
-  const cedidas: Record<string, { mediaCedida: number; amostra: number; usouFallback: boolean }> = {};
+  const cedidas: Record<string, CedidaResumo> = {};
   for (const clubeStr of Object.keys(mando)) {
     const clube = Number(clubeStr);
     const mandoAdv = mando[clubeStr] === "casa" ? "fora" : "casa";
@@ -569,6 +580,11 @@ export async function ligaSnapshot(
           [...amostra].sort((a, b) => b.pontuacao - a.pontuacao).slice(0, 5).reduce((s, g) => s + g.pontuacao, 0) / 5,
         amostra: amostra.length,
         usouFallback,
+        gols: amostra.reduce((t, g) => t + (g.scout["G"] ?? 0), 0),
+        assistencias: amostra.reduce((t, g) => t + (g.scout["A"] ?? 0), 0),
+        desarmes: amostra.reduce((t, g) => t + (g.scout["DS"] ?? 0), 0),
+        defesas: amostra.reduce((t, g) => t + (g.scout["DE"] ?? 0), 0),
+        sg: amostra.filter((g) => (g.scout["SG"] ?? 0) > 0).length,
       };
     }
   }

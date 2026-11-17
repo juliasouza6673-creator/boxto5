@@ -35,6 +35,30 @@ export type Database = {
         }
         Relationships: []
       }
+      cedimento_layouts: {
+        Row: {
+          clube_id: number
+          id: string
+          posicoes: Json
+          rodada: number
+          updated_at: string
+        }
+        Insert: {
+          clube_id: number
+          id?: string
+          posicoes?: Json
+          rodada: number
+          updated_at?: string
+        }
+        Update: {
+          clube_id?: number
+          id?: string
+          posicoes?: Json
+          rodada?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       player_status_overrides: {
         Row: {
           atleta_id: number

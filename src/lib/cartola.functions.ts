@@ -20,6 +20,7 @@ export type BestPick = {
   golsCedidos: number;
   minutos: number;
   tendencia: "subindo" | "estavel" | "caindo";
+  esperado: number;
   score: number;
 };
 
@@ -87,6 +88,10 @@ export const getPlayerAnalysis = createServerFn({ method: "POST" })
         m.teamForm(info.adversario, contrario, rodada, 5),
         m.playerLastRounds(data.atletaId, rodada, 10),
       ]);
+      const [recOf, sgAdv] = await Promise.all([
+        m.recorrenciaOfensiva(data.atletaId, rodada),
+        m.sgCedidosRecentes(info.adversario, rodada),
+      ]);
       // Sem jogos no mando previsto: usa as últimas 5 em casa como referência
       const fallbackCasa =
         !histRaw.length && info.mando !== "casa"
@@ -111,6 +116,7 @@ export const getPlayerAnalysis = createServerFn({ method: "POST" })
             desarmesCedidos: cs.desarmes,
             defesasCedidas: cs.defesas,
             amostra: cs.amostra,
+            mediaBasicaCedida: cs.mediaBasicaCedida,
           };
           cedSubInfo = { usouFallback: cs.usouFallback, mediaCedidaGeral: cs.mediaCedidaGeral };
         }
@@ -135,7 +141,17 @@ export const getPlayerAnalysis = createServerFn({ method: "POST" })
         minutagem: minut,
         formTime,
         formAdversario: formAdv,
-        pontuacaoEsperada: mediaMando + cedFinal.mediaCedida,
+        ...(() => {
+          const pe = m.calcPontuacaoEsperada({
+            posicaoId: data.posicaoId,
+            mediaCedida: cedFinal.mediaCedida,
+            mediaMando,
+            mediaBasicaCedida: cedFinal.mediaBasicaCedida,
+            recOfensiva: recOf,
+            sgAdv,
+          });
+          return { pontuacaoEsperada: pe.valor, bonusOfensivo: pe.bonusOfensivo, bonusSG: pe.bonusSG };
+        })(),
         confianca: Math.min(1, (hist.length + cedFinal.amostra / 3) / 8),
         enfrentaPosicoes: m.enfrentaPosicoes(data.posicaoId),
       };
@@ -168,7 +184,18 @@ export const getExpectedPoints = createServerFn({ method: "POST" })
           cedCache.set(key, ced);
         }
         const mediaMando = hist.length ? hist.reduce((s, g) => s + g.pontuacao, 0) / 5 : 0;
-        out[String(j.atletaId)] = mediaMando + ced.mediaCedida;
+        const [recOf, sgAdv] = await Promise.all([
+          m.recorrenciaOfensiva(j.atletaId, rodada),
+          m.sgCedidosRecentes(info.adversario, rodada),
+        ]);
+        out[String(j.atletaId)] = m.calcPontuacaoEsperada({
+          posicaoId: j.posicaoId,
+          mediaCedida: ced.mediaCedida,
+          mediaMando,
+          mediaBasicaCedida: ced.mediaBasicaCedida,
+          recOfensiva: recOf,
+          sgAdv,
+        }).valor;
         cedidas[String(j.atletaId)] = ced.mediaCedida;
       }
       return { ok: true as const, esperado: out, cedidas };
@@ -229,6 +256,7 @@ export const getBestOfRound = createServerFn({ method: "POST" })
               golsCedidos: cs.gols,
               desarmesCedidos: cs.desarmes,
               defesasCedidas: cs.defesas,
+              mediaBasicaCedida: cs.mediaBasicaCedida,
             };
           }
         }
@@ -252,6 +280,18 @@ export const getBestOfRound = createServerFn({ method: "POST" })
         const delta = mm3.length ? avg(mm3) - (antes.length ? avg(antes) : avg(mm3)) : 0;
         const tendencia = delta > 0.8 ? ("subindo" as const) : delta < -0.8 ? ("caindo" as const) : ("estavel" as const);
 
+        const [recOf, sgAdv] = posId === 6 ? [0, 0] : await Promise.all([
+          m.recorrenciaOfensiva(a.atleta_id, rodada),
+          m.sgCedidosRecentes(info.adversario, rodada),
+        ]);
+        const esperado = m.calcPontuacaoEsperada({
+          posicaoId: posId,
+          mediaCedida: ced.mediaCedida,
+          mediaMando,
+          mediaBasicaCedida: ced.mediaBasicaCedida,
+          recOfensiva: recOf,
+          sgAdv,
+        }).valor;
         const fatorMin = 0.6 + 0.4 * Math.min(1, minutos / 90);
         const bonusTend = tendencia === "subindo" ? 1.08 : tendencia === "caindo" ? 0.92 : 1;
         const bonusRec = 1 + (ced.recorrencia / 100) * 0.25;
@@ -275,7 +315,8 @@ export const getBestOfRound = createServerFn({ method: "POST" })
           golsCedidos: ced.golsCedidos,
           minutos,
           tendencia,
-          score: (mediaMando * 0.6 + media * 0.4 + ced.mediaCedida) * (0.6 + 0.4 * peso) * fatorMin * bonusTend * bonusRec,
+          esperado,
+          score: esperado * (0.6 + 0.4 * peso) * fatorMin * bonusTend * bonusRec,
         });
       }
       byPos[String(posId)] = scored.sort((x, y) => y.score - x.score).slice(0, 10);
