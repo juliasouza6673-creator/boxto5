@@ -1,5 +1,7 @@
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+
+import { supabase } from "@/integrations/supabase/client";
 import { useServerFn } from "@tanstack/react-start";
 
 import campinhoBg from "@/assets/campinho7.png.asset.json";
@@ -15,7 +17,10 @@ type Props = {
   atletas: Atleta[];
   producao: Record<string, Partial<Producao>>;
   onOpenPlayer: (a: Atleta) => void;
+  isAdmin?: boolean;
 };
+
+type Slot = { sub: string; x: number; y: number; atleta_id?: number | null };
 
 const POSICOES: Array<{ sub: string; x: number; y: number; nome: string }> = [
   { sub: "CA", x: 50, y: 9, nome: "Centroavante" },
@@ -32,7 +37,8 @@ const POSICOES: Array<{ sub: string; x: number; y: number; nome: string }> = [
   { sub: "GOL", x: 50, y: 91, nome: "Goleiro" },
 ];
 
-export function CedimentosMap({ clubes, atletas, producao, onOpenPlayer }: Props) {
+export function CedimentosMap({ clubes, atletas, producao, onOpenPlayer, isAdmin = false }: Props) {
+  const qc = useQueryClient();
   const { data: subs } = useSubcategorias();
   const fn = useServerFn(getCedimentosMapa);
   const [clubeId, setClubeId] = useState<number | null>(null);
@@ -51,6 +57,59 @@ export function CedimentosMap({ clubes, atletas, producao, onOpenPlayer }: Props
   });
 
   const mapa = data?.ok ? data.mapa : null;
+  const rodada = data?.ok ? data.rodada : null;
+
+  // Arrumação salva pelo admin (posição dos quadros, quadros removidos, jogador escolhido)
+  const { data: salvo } = useQuery({
+    queryKey: ["cedimento-layout", rodada, clubeId],
+    enabled: !!clubeId && !!rodada,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data: row } = await supabase
+        .from("cedimento_layouts")
+        .select("posicoes")
+        .eq("rodada", rodada!)
+        .eq("clube_id", clubeId!)
+        .maybeSingle();
+      return (row?.posicoes as Slot[] | undefined) ?? null;
+    },
+  });
+  const [editando, setEditando] = useState(false);
+  const [draft, setDraft] = useState<Slot[]>([]);
+  const [salvando, setSalvando] = useState(false);
+  const campo = useRef<HTMLDivElement>(null);
+  const arrastando = useRef<string | null>(null);
+  const baseSlots: Slot[] = salvo && salvo.length ? salvo : POSICOES.map(({ sub, x, y }) => ({ sub, x, y }));
+  const slots = editando ? draft : baseSlots;
+  const nomeSub = (sub: string) => POSICOES.find((p) => p.sub === sub)?.nome ?? sub;
+
+  const mover = (e: React.PointerEvent) => {
+    if (!arrastando.current || !campo.current) return;
+    const r = campo.current.getBoundingClientRect();
+    const x = Math.min(92, Math.max(8, ((e.clientX - r.left) / r.width) * 100));
+    const y = Math.min(94, Math.max(6, ((e.clientY - r.top) / r.height) * 100));
+    const sub = arrastando.current;
+    setDraft((d) => d.map((p) => (p.sub === sub ? { ...p, x, y } : p)));
+  };
+
+  const salvar = async () => {
+    if (!rodada || !clubeId) return;
+    setSalvando(true);
+    const posicoes = draft.map((p) => ({
+      sub: p.sub,
+      x: Math.round(p.x * 10) / 10,
+      y: Math.round(p.y * 10) / 10,
+      ...(p.atleta_id ? { atleta_id: p.atleta_id } : {}),
+    }));
+    const { error } = await supabase
+      .from("cedimento_layouts")
+      .upsert({ rodada, clube_id: clubeId, posicoes }, { onConflict: "rodada,clube_id" });
+    setSalvando(false);
+    if (!error) {
+      await qc.invalidateQueries({ queryKey: ["cedimento-layout", rodada, clubeId] });
+      setEditando(false);
+    }
+  };
   const rivalId = data?.ok ? data.adversarioProximo : null;
   const rival = rivalId ? clubes[String(rivalId)] : undefined;
   const alvo = detalhe && mapa ? mapa[detalhe] : null;
@@ -75,19 +134,29 @@ export function CedimentosMap({ clubes, atletas, producao, onOpenPlayer }: Props
       const s = a.posicao_id === 1 ? "GOL" : subs?.[String(a.atleta_id)];
       if (s && !out[s]) out[s] = a;
     }
+    for (const sl of salvo ?? []) {
+      const a = sl.atleta_id ? atletas.find((x) => x.atleta_id === sl.atleta_id) : undefined;
+      if (a) out[sl.sub] = a;
+    }
+    if (editando) {
+      for (const sl of draft) {
+        const a = sl.atleta_id ? atletas.find((x) => x.atleta_id === sl.atleta_id) : undefined;
+        if (a) out[sl.sub] = a;
+      }
+    }
     for (const [s, id] of Object.entries(manual)) {
       const a = atletas.find((x) => x.atleta_id === id);
       if (a) out[s] = a;
     }
     return out;
-  }, [atletas, rivalId, subs, manual]);
+  }, [atletas, rivalId, subs, manual, salvo, editando, draft]);
 
   // Destaque: maior soma de produção + cedimento
   const destaque = useMemo(() => {
     if (!mapa) return null;
     let best: string | null = null;
     let bestV = -1;
-    for (const p of POSICOES) {
+    for (const p of slots) {
       const c = mapa[p.sub];
       const a = provavelDoRival[p.sub];
       if (!c || !a || p.sub === "GOL") continue;
@@ -99,7 +168,8 @@ export function CedimentosMap({ clubes, atletas, producao, onOpenPlayer }: Props
       }
     }
     return best;
-  }, [mapa, provavelDoRival, producao]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapa, provavelDoRival, producao, slots]);
 
   const mandoRival = data?.ok ? (data.mando === "casa" ? "fora" : "casa") : "";
 
@@ -152,16 +222,59 @@ export function CedimentosMap({ clubes, atletas, producao, onOpenPlayer }: Props
               {rival?.nome ?? "—"} ({mandoRival})
             </span>
             <span className="text-muted-foreground">· rodada {data?.ok ? data.rodada : ""}</span>
+            {isAdmin && !editando && (
+              <button
+                onClick={() => {
+                  setDraft(baseSlots.map((sl) => ({ ...sl, atleta_id: sl.atleta_id ?? provavelDoRival[sl.sub]?.atleta_id ?? null })));
+                  setEditando(true);
+                }}
+                className="brutal-sm bg-accent px-2 py-0.5 text-[10px]"
+              >
+                Editar
+              </button>
+            )}
           </div>
+          {editando && (
+            <div className="mb-2 flex flex-wrap items-center justify-center gap-2">
+              {POSICOES.filter((p) => !draft.some((d) => d.sub === p.sub)).map((p) => (
+                <button
+                  key={p.sub}
+                  onClick={() => setDraft((d) => [...d, { sub: p.sub, x: p.x, y: p.y }])}
+                  className="brutal-sm bg-panel-2 px-1.5 py-0.5 font-condensed text-[10px] uppercase"
+                >
+                  + {p.sub}
+                </button>
+              ))}
+              <button
+                onClick={() => void salvar()}
+                disabled={salvando}
+                className="brutal-sm bg-primary px-2 py-0.5 font-condensed text-xs uppercase text-primary-foreground"
+              >
+                {salvando ? "Salvando…" : "Salvar →"}
+              </button>
+              <button onClick={() => setEditando(false)} className="brutal-sm bg-panel-2 px-2 py-0.5 font-condensed text-xs uppercase">
+                Cancelar
+              </button>
+              <p className="w-full text-center text-[10px] text-muted-foreground">
+                Arraste pelo nome da posição, use ✕ para tirar um quadro e "trocar" para mudar o jogador. O que você salvar é o
+                que todos veem.
+              </p>
+            </div>
+          )}
           <div
+            ref={campo}
+            onPointerMove={mover}
+            onPointerUp={() => (arrastando.current = null)}
+            onPointerLeave={() => (arrastando.current = null)}
             className="relative mx-auto w-full max-w-[760px] overflow-hidden rounded border-2 border-foreground"
             style={{
+              touchAction: editando ? "none" : "auto",
               aspectRatio: "3 / 4.4",
               backgroundImage: `url(${campinhoBg.url})`,
               backgroundSize: "100% 100%",
             }}
           >
-            {POSICOES.map((p) => {
+            {slots.map((p) => {
               const cRaw = mapa[p.sub];
               const c = cRaw && cRaw.amostra > 0 ? cRaw : null;
               const a = provavelDoRival[p.sub];
@@ -174,23 +287,47 @@ export function CedimentosMap({ clubes, atletas, producao, onOpenPlayer }: Props
                   className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
                   style={{ left: `${p.x}%`, top: `${p.y}%` }}
                 >
-                  <span className="mb-0.5 hidden font-condensed text-[10px] font-bold uppercase text-white drop-shadow sm:block">
-                    {p.nome}
+                  <span
+                    onPointerDown={(e) => {
+                      if (!editando) return;
+                      e.preventDefault();
+                      arrastando.current = p.sub;
+                    }}
+                    className={`mb-0.5 font-condensed text-[10px] font-bold uppercase text-white drop-shadow ${editando ? "block cursor-grab bg-ink/60 px-1" : "hidden sm:block"}`}
+                  >
+                    {editando ? "✥ " : ""}
+                    {nomeSub(p.sub)}
                   </span>
-                  <button
-                    onClick={() => (a ? c && setDetalhe(p.sub) : setEscolher(p.sub))}
+                  {editando && (
+                    <button
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onClick={() => setDraft((d) => d.filter((x) => x.sub !== p.sub))}
+                      className="absolute -right-1 -top-1 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-[10px] text-destructive-foreground"
+                      aria-label="Remover quadro"
+                    >
+                      ✕
+                    </button>
+                  )}
+                  <div
                     className={`w-[78px] rounded-md border-2 bg-[#F2ECDC] p-1 text-center text-[#111] shadow-[3px_3px_0_#000] sm:w-[118px] sm:p-1.5 ${isDest ? "border-accent" : "border-foreground"}`}
                   >
                     <span className="block font-condensed text-[9px] font-bold uppercase sm:hidden">{p.sub}</span>
-                    <img
-                      src={a ? (playerPhoto(a) ?? escudo(rival, "45x45")) : escudo(rival, "45x45")}
-                      alt=""
-                      className="mx-auto h-7 w-7 rounded-full border border-foreground bg-white object-cover sm:h-10 sm:w-10"
-                    />
-                    <span className="block truncate text-[9px] font-bold sm:text-[11px]">
-                      {a ? `[${p.sub}] ${a.apelido}` : "+ Escolher jogador"}
-                    </span>
-                    {a && manual[p.sub] && (
+                    <button
+                      type="button"
+                      onClick={() => (a ? onOpenPlayer(a) : setEscolher(p.sub))}
+                      className="block w-full"
+                      title={a ? "Abrir card do jogador" : "Escolher jogador"}
+                    >
+                      <img
+                        src={a ? (playerPhoto(a) ?? escudo(rival, "45x45")) : escudo(rival, "45x45")}
+                        alt=""
+                        className="mx-auto h-7 w-7 rounded-full border border-foreground bg-white object-cover sm:h-10 sm:w-10"
+                      />
+                      <span className="block truncate text-[9px] font-bold sm:text-[11px]">
+                        {a ? `[${p.sub}] ${a.apelido}` : "+ Escolher jogador"}
+                      </span>
+                    </button>
+                    {a && (
                       <span
                         role="button"
                         onClick={(e) => {
@@ -221,7 +358,12 @@ export function CedimentosMap({ clubes, atletas, producao, onOpenPlayer }: Props
                         <span>{pr.desarmes ?? 0}<small className="block text-[6px] text-[#555]">DS</small></span>
                       </div>
                     </div>
-                    <div className="mt-0.5 rounded bg-[#e2e0da] px-0.5 py-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setDetalhe(p.sub)}
+                      title="Ver jogadores que enfrentaram o time nessa posição"
+                      className="mt-0.5 block w-full rounded bg-[#e2e0da] px-0.5 py-0.5"
+                    >
                       <span className="block font-condensed text-[7px] font-bold uppercase text-[#444] sm:text-[8px]">
                         Rival cedeu {c ? "🔍" : ""}
                       </span>
@@ -248,8 +390,8 @@ export function CedimentosMap({ clubes, atletas, producao, onOpenPlayer }: Props
                           Não há números suficientes do rival cedeu
                         </span>
                       )}
-                    </div>
-                  </button>
+                    </button>
+                  </div>
                 </div>
               );
             })}
@@ -276,6 +418,11 @@ export function CedimentosMap({ clubes, atletas, producao, onOpenPlayer }: Props
                   <button
                     key={a.atleta_id}
                     onClick={() => {
+                      if (editando) {
+                        setDraft((d) => d.map((x) => (x.sub === escolher ? { ...x, atleta_id: a.atleta_id } : x)));
+                        setEscolher(null);
+                        return;
+                      }
                       setManualPorRival((m) => ({
                         ...m,
                         [String(rivalId)]: { ...(m[String(rivalId)] ?? {}), [escolher]: a.atleta_id },

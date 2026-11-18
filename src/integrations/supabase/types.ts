@@ -143,6 +143,30 @@ export type Database = {
         }
         Relationships: []
       }
+      round_recommendations: {
+        Row: {
+          id: string
+          itens: Json
+          rodada: number
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          itens?: Json
+          rodada: number
+          tipo: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          itens?: Json
+          rodada?: number
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string

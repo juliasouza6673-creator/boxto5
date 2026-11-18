@@ -23,13 +23,13 @@
 - [x] Confrontos: campinhos verticais com prováveis por posição, gaveta de desfalques, editor admin drag-and-drop
 
 ## Pedidos (09/10) — ordem menos→mais créditos
-- [ ] Pontuação esperada nova (card, Melhores Opções, Principais Jogadores)
-- [ ] Quem Mais Cede explicativo (GOL defesas/SG, DEF desarmes/SG, MEI/ATA gols/assist.)
-- [ ] Login Google
-- [ ] Confrontos: círculos maiores, só nome, 4-3-3
-- [ ] Mapa: clique na foto abre card, "Rival cedeu" abre histórico
-- [ ] Desfalques só da rodada
-- [ ] Início dinâmico: mercado 5 em 5, alternância Principais/Top Dicas
-- [ ] Dúvida com substituto sombreado (admin)
-- [ ] Editor admin no Mapa (trocar/mover/remover cards, salvar para todos)
-- [ ] Histórico 3 rodadas anteriores (Melhores Opções e SGs)
+- [x] Pontuação esperada nova (card, Melhores Opções, Principais Jogadores)
+- [x] Quem Mais Cede explicativo (GOL defesas/SG, DEF desarmes/SG, MEI/ATA gols/assist.)
+- [x] Login Google
+- [x] Confrontos: círculos maiores, só nome, 4-3-3
+- [x] Mapa: clique na foto abre card, "Rival cedeu" abre histórico
+- [x] Desfalques: já mostram só o status atual da rodada
+- [x] Início dinâmico: mercado 5 em 5, alternância Principais/Top Dicas
+- [x] Dúvida com substituto sombreado (admin)
+- [x] Editor admin no Mapa (trocar/mover/remover cards, salvar para todos)
+- [x] Histórico 3 rodadas anteriores (Melhores Opções e SGs)

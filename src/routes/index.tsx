@@ -609,6 +609,7 @@ function Index() {
           atletas={atletas}
           producao={snap?.ok ? snap.jogadores : {}}
           onOpenPlayer={setAberto}
+          isAdmin={!!isAdmin}
         />
       )}
 

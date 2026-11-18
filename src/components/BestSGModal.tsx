@@ -1,3 +1,4 @@
+import { RecHistorico } from "@/components/RecHistorico";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -154,6 +155,7 @@ export function BestSGModal({ clubes, onClose }: { clubes: Record<string, Clube>
               );
             })}
           {data && !data.ok && <p className="text-center text-sm text-destructive">{data.error}</p>}
+          <RecHistorico tipo="sg" clubes={clubes} />
         </div>
       </div>
     </div>

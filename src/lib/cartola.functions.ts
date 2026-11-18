@@ -333,6 +333,23 @@ export const getBestOfRound = createServerFn({ method: "POST" })
     }
     for (const lista of Object.values(bySub)) lista.sort((x, y) => y.score - x.score);
 
+    await salvarRecomendacao(
+      rodada,
+      "best",
+      Object.entries(byPos)
+        .filter(([pos]) => pos !== "6")
+        .flatMap(([, lista]) => lista.slice(0, 3))
+        .map((p) => ({
+          atleta_id: p.atleta_id,
+          apelido: p.apelido,
+          clube_id: p.clube_id,
+          posicao_id: p.posicao_id,
+          sub: p.posicao_id === 1 ? "GOL" : (subs[String(p.atleta_id)] ?? null),
+          esperado: Math.round(p.esperado * 100) / 100,
+        })),
+      status.status_mercado === 1,
+    );
+
     return { ok: true as const, rodada, byPos, bySub };
   } catch (err) {
     return { ok: false as const, error: (err as Error).message };
@@ -340,62 +357,134 @@ export const getBestOfRound = createServerFn({ method: "POST" })
 });
 
 /** Ranking de prováveis SGs da rodada: defesa que mais preserva x ataque que mais cede. */
+async function computeSG(m: typeof import("./cartola-analysis.server"), rodada: number) {
+  const partidas = await m.getPartidas(rodada);
+  const out: Array<{
+    clube_id: number;
+    adversario: number;
+    mando: "casa" | "fora";
+    clube_casa_id: number;
+    clube_visitante_id: number;
+    defesa: Awaited<ReturnType<typeof m.teamForm>>;
+    ataqueAdversario: Awaited<ReturnType<typeof m.teamForm>>;
+    chance: number;
+  }> = [];
+  for (const p of partidas.partidas ?? []) {
+    const opcoes: typeof out = [];
+    for (const lado of ["casa", "fora"] as const) {
+      const clube = lado === "casa" ? p.clube_casa_id : p.clube_visitante_id;
+      const adv = lado === "casa" ? p.clube_visitante_id : p.clube_casa_id;
+      const advMando = lado === "casa" ? ("fora" as const) : ("casa" as const);
+      const [defesa, ataqueAdversario] = await Promise.all([
+        m.teamForm(clube, lado, rodada, 8),
+        m.teamForm(adv, advMando, rodada, 8),
+      ]);
+      const nD = Math.max(1, defesa.jogos.length);
+      const nA = Math.max(1, ataqueAdversario.jogos.length);
+      let lambda = Math.sqrt(Math.max(0.15, defesa.golsSofridos / nD) * Math.max(0.15, ataqueAdversario.golsFeitos / nA));
+      lambda *= lado === "casa" ? 0.9 : 1.12;
+      const poisson = Math.exp(-lambda);
+      const empirico = (defesa.sgMantidos / nD) * 0.5 + (ataqueAdversario.sgCedidos / nA) * 0.5;
+      const confianca = Math.min(1, (defesa.jogos.length + ataqueAdversario.jogos.length) / 10);
+      const chance = Math.round(
+        Math.max(4, Math.min(88, (poisson * 0.6 + empirico * 0.4) * 100 * (0.75 + 0.25 * confianca))),
+      );
+      opcoes.push({ clube_id: clube, adversario: adv, mando: lado, clube_casa_id: p.clube_casa_id, clube_visitante_id: p.clube_visitante_id, defesa, ataqueAdversario, chance });
+    }
+    const melhor = opcoes.sort((a, b) => b.chance - a.chance)[0];
+    if (melhor) out.push(melhor);
+  }
+  return out.sort((a, b) => b.chance - a.chance);
+}
+
+/** Grava as sugestões da rodada enquanto o mercado está aberto (a última versão antes de fechar vale). */
+async function salvarRecomendacao(rodada: number, tipo: "best" | "sg", itens: unknown, mercadoAberto: boolean) {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    if (mercadoAberto) {
+      await supabaseAdmin.from("round_recommendations").upsert({ rodada, tipo, itens: itens as never }, { onConflict: "rodada,tipo" });
+    } else {
+      await supabaseAdmin
+        .from("round_recommendations")
+        .upsert({ rodada, tipo, itens: itens as never }, { onConflict: "rodada,tipo", ignoreDuplicates: true });
+    }
+  } catch {
+    /* histórico é opcional */
+  }
+}
+
+/** Ranking de prováveis SGs da rodada: defesa que mais preserva x ataque que mais cede. */
 export const getBestSG = createServerFn({ method: "GET" }).handler(async () => {
   const m = await import("./cartola-analysis.server");
   try {
     const status = await m.getStatus();
     const rodada = status.rodada_atual ?? 1;
-    const partidas = await m.getPartidas(rodada);
-    type Item = {
-      clube_id: number;
-      adversario: number;
-      mando: "casa" | "fora";
-      clube_casa_id: number;
-      clube_visitante_id: number;
-      defesa: Awaited<ReturnType<typeof m.teamForm>>;
-      ataqueAdversario: Awaited<ReturnType<typeof m.teamForm>>;
-      chance: number;
-    };
-    const out: Item[] = [];
-    for (const p of partidas.partidas ?? []) {
-      const opcoes: Item[] = [];
-      for (const lado of ["casa", "fora"] as const) {
-        const clube = lado === "casa" ? p.clube_casa_id : p.clube_visitante_id;
-        const adv = lado === "casa" ? p.clube_visitante_id : p.clube_casa_id;
-        const advMando = lado === "casa" ? ("fora" as const) : ("casa" as const);
-        // amostra maior (até 8 jogos) sempre respeitando o mando
-        const [defesa, ataqueAdversario] = await Promise.all([
-          m.teamForm(clube, lado, rodada, 8),
-          m.teamForm(adv, advMando, rodada, 8),
-        ]);
-        const nD = Math.max(1, defesa.jogos.length);
-        const nA = Math.max(1, ataqueAdversario.jogos.length);
-        const golsSofridosPorJogo = defesa.golsSofridos / nD;
-        const golsFeitosAdvPorJogo = ataqueAdversario.golsFeitos / nA;
-        // expectativa de gols do adversário nesse confronto
-        let lambda = Math.sqrt(Math.max(0.15, golsSofridosPorJogo) * Math.max(0.15, golsFeitosAdvPorJogo));
-        lambda *= lado === "casa" ? 0.9 : 1.12; // peso de mando
-        const poisson = Math.exp(-lambda);
-        const empirico = (defesa.sgMantidos / nD) * 0.5 + (ataqueAdversario.sgCedidos / nA) * 0.5;
-        const confianca = Math.min(1, (defesa.jogos.length + ataqueAdversario.jogos.length) / 10);
-        const chance = Math.round(
-          Math.max(4, Math.min(88, (poisson * 0.6 + empirico * 0.4) * 100 * (0.75 + 0.25 * confianca))),
-        );
-        opcoes.push({
-          clube_id: clube,
-          adversario: adv,
-          mando: lado,
-          clube_casa_id: p.clube_casa_id,
-          clube_visitante_id: p.clube_visitante_id,
-          defesa,
-          ataqueAdversario,
-          chance,
-        });
+    const ranking = await computeSG(m, rodada);
+    await salvarRecomendacao(
+      rodada,
+      "sg",
+      ranking.slice(0, 5).map((r) => ({ clube_id: r.clube_id, adversario: r.adversario, mando: r.mando, chance: r.chance })),
+      status.status_mercado === 1,
+    );
+    return { ok: true as const, rodada, ranking };
+  } catch (err) {
+    return { ok: false as const, error: (err as Error).message };
+  }
+});
+
+export type HistoricoRodada = {
+  rodada: number;
+  registrado: boolean;
+  best: Array<{ atleta_id: number; apelido: string; clube_id: number; posicao_id: number; sub: string | null; esperado: number; real: number | null }>;
+  sg: Array<{ clube_id: number; adversario: number; mando: "casa" | "fora"; chance: number; acertou: boolean | null }>;
+};
+
+/** Sugestões das 3 rodadas anteriores com o resultado real, para medir a assertividade. */
+export const getHistoricoRecomendacoes = createServerFn({ method: "GET" }).handler(async () => {
+  const m = await import("./cartola-analysis.server");
+  try {
+    const status = await m.getStatus();
+    const atual = status.rodada_atual ?? 1;
+    const rodadas = [atual - 1, atual - 2, atual - 3].filter((r) => r >= 1);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: rows } = await supabaseAdmin
+      .from("round_recommendations")
+      .select("rodada, tipo, itens")
+      .in("rodada", rodadas.length ? rodadas : [0]);
+    const out: HistoricoRodada[] = [];
+    for (const r of rodadas) {
+      const [pts, partidas] = await Promise.all([
+        m.getPontuados(r).catch(() => null),
+        m.getPartidas(r).catch(() => null),
+      ]);
+      const bestRow = rows?.find((x) => x.rodada === r && x.tipo === "best");
+      const sgRow = rows?.find((x) => x.rodada === r && x.tipo === "sg");
+      const best = ((bestRow?.itens as HistoricoRodada["best"] | undefined) ?? []).map((b) => {
+        const a = pts?.atletas?.[String(b.atleta_id)];
+        return { ...b, real: a ? (a.pontuacao ?? 0) : null };
+      });
+      // SG: usa o registrado; sem registro, recalcula com os dados disponíveis antes daquela rodada.
+      let sgBase = (sgRow?.itens as Array<{ clube_id: number; adversario: number; mando: "casa" | "fora"; chance: number }> | undefined) ?? null;
+      if (!sgBase) {
+        sgBase = (await computeSG(m, r).catch(() => [])).slice(0, 5).map((x) => ({
+          clube_id: x.clube_id,
+          adversario: x.adversario,
+          mando: x.mando,
+          chance: x.chance,
+        }));
       }
-      const melhor = opcoes.sort((a, b) => b.chance - a.chance)[0];
-      if (melhor) out.push(melhor);
+      const sg = sgBase.map((g) => {
+        const jogo = partidas?.partidas.find((p) => p.clube_casa_id === g.clube_id || p.clube_visitante_id === g.clube_id);
+        const sofridos = jogo
+          ? jogo.clube_casa_id === g.clube_id
+            ? jogo.placar_oficial_visitante
+            : jogo.placar_oficial_mandante
+          : null;
+        return { ...g, acertou: sofridos === null || sofridos === undefined ? null : sofridos === 0 };
+      });
+      out.push({ rodada: r, registrado: !!bestRow, best, sg });
     }
-    return { ok: true as const, rodada, ranking: out.sort((a, b) => b.chance - a.chance) };
+    return { ok: true as const, atual, rodadas: out };
   } catch (err) {
     return { ok: false as const, error: (err as Error).message };
   }
